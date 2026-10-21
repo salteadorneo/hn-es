@@ -1,11 +1,327 @@
 ---
-import Welcome from '../components/Welcome.astro';
 import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
 ---
+<Layout title="Hacker News en Español">
+  <header class="sticky top-0 z-10 border-b-2 border-stone-400 bg-stone-50/90 backdrop-blur">
+    <div class="mx-auto max-w-6xl px-4 py-3">
+      <div class="flex items-center justify-between gap-3">
+        <div class="text-xs uppercase tracking-widest text-stone-500">{new Date().toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</div>
+        <div class="flex items-center gap-2">
+          <span id="status" class="text-xs text-stone-600"></span>
+          <button id="refresh" class="rounded border border-stone-400 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-stone-900 hover:bg-stone-200 disabled:opacity-50">Actualizar</button>
+        </div>
+      </div>
+      <div class="mt-2 border-t border-stone-300 pt-2 text-center">
+        <h1 class="font-serif text-4xl font-black tracking-tight text-stone-900 sm:text-5xl">Hacker News en Español</h1>
+        <p class="mt-1 text-xs uppercase tracking-[0.3em] text-stone-500">Edición digital · traducción al vuelo</p>
+      </div>
+    </div>
+  </header>
 
-<Layout>
-	<Welcome />
+  <main class="mx-auto max-w-6xl px-4 py-6">
+    <div id="skeletons" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 9 }).map(() => (
+        <div class="animate-pulse rounded-xl border border-stone-300 bg-white p-4">
+          <div class="h-5 w-3/4 rounded bg-stone-200"></div>
+          <div class="mt-3 h-3 w-1/2 rounded bg-stone-200"></div>
+        </div>
+      ))}
+    </div>
+
+    <section id="hero" class="hidden mb-6"></section>
+
+    <div class="grid gap-6 lg:grid-cols-3">
+      <section class="lg:col-span-2">
+        <h2 class="mb-3 text-lg font-semibold text-stone-900">Últimas noticias</h2>
+        <div id="grid" class="grid gap-4 sm:grid-cols-2"></div>
+      </section>
+      <aside>
+        <h2 class="mb-3 flex items-center gap-2 text-lg font-semibold text-stone-900">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.69-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.53-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.7 5.39-5.27 5.67.41.36.78 1.06.78 2.14 0 1.55-.01 2.8-.01 3.18 0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5z"/></svg>
+          Repositorios GitHub
+        </h2>
+        <div id="github" class="space-y-3"></div>
+      </aside>
+    </div>
+
+    <div id="empty" class="hidden rounded-xl border border-stone-300 bg-stone-100 p-8 text-center text-stone-600">
+      No hay historias disponibles.
+    </div>
+
+    <div id="error" class="hidden rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700"></div>
+
+    <div class="mt-6 text-center">
+      <button
+        id="loadmore"
+        class="hidden rounded-lg border border-stone-400 bg-white px-4 py-2 text-sm font-medium text-stone-900 hover:bg-stone-200 disabled:opacity-50"
+      >
+        Cargar más
+      </button>
+    </div>
+
+    <footer class="mt-10 border-t border-stone-300 pt-4 text-center text-xs text-stone-500">
+      Datos de <a class="text-stone-700 hover:underline" href="https://news.ycombinator.com" target="_blank" rel="noopener">Hacker News</a>
+      · Traducción por <a class="text-stone-700 hover:underline" href="https://mymemory.translated.net" target="_blank" rel="noopener">MyMemory</a>
+      · Contexto por <a class="text-stone-700 hover:underline" href="https://r.jina.ai" target="_blank" rel="noopener">Jina Reader</a>
+    </footer>
+  </main>
+
+  <script>
+    import { fetchFeedIds, fetchItem, domainOf, timeAgo, hnLink, fetchContext } from '../scripts/hn';
+    import { toSpanish, mapLimit } from '../scripts/translate';
+
+    type Story = {
+      id: number;
+      title: string;
+      rawTitle: string;
+      titleEs: string;
+      url?: string;
+      score?: number;
+      by?: string;
+      time?: number;
+      descendants?: number;
+      text?: string;
+      textSnippet?: string;
+      image?: string;
+    };
+
+    const PAGE_SIZE = 20;
+    const TOTAL_FETCH = 60;
+
+    const skeletons = document.getElementById('skeletons')!;
+    const heroEl = document.getElementById('hero')!;
+    const gridEl = document.getElementById('grid')!;
+    const githubEl = document.getElementById('github')!;
+    const empty = document.getElementById('empty')!;
+    const errorBox = document.getElementById('error')!;
+    const status = document.getElementById('status')!;
+    const loadMoreBtn = document.getElementById('loadmore') as HTMLButtonElement;
+    const refreshBtn = document.getElementById('refresh') as HTMLButtonElement;
+
+    let allIds: number[] = [];
+    let offset = 0;
+    let loading = false;
+    let loadedStories: Story[] = [];
+
+    function escapeHtml(s: string): string {
+      return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+    }
+
+    function stripHtml(html: string): string {
+      const tmp = document.createElement('textarea');
+      tmp.innerHTML = html.replace(/<[^>]*>/g, ' ');
+      return (tmp.value || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function renderCard(s: Story): string {
+      const url = s.url || hnLink(s.id);
+      const comments = (s.descendants ?? 0).toLocaleString('es-ES');
+      const points = (s.score ?? 0).toLocaleString('es-ES');
+      const big = (s.score ?? 0) >= 300;
+      const mid = (s.score ?? 0) >= 100;
+      const titleSize = big ? 'text-2xl' : mid ? 'text-xl' : 'text-lg';
+      const span = big ? 'sm:col-span-2' : '';
+      const thumb = s.image
+        ? `<img src="${escapeHtml(s.image)}" alt="" class="h-20 w-20 shrink-0 rounded-lg object-cover" loading="lazy" />`
+        : '';
+      return `
+        <article class="group border-b border-stone-300 py-4 ${span}">
+          <div class="flex gap-3">
+            ${thumb}
+            <div class="min-w-0 flex-1">
+              <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="block ${titleSize} font-serif font-bold leading-tight text-stone-900 hover:text-orange-700">
+                ${escapeHtml(s.titleEs || s.title)}
+              </a>
+          <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-stone-600">
+            <span>${points} puntos</span>
+            <span>·</span>
+            <span>por ${escapeHtml(s.by || 'anónimo')}</span>
+            <span>·</span>
+            <span>${timeAgo(s.time)}</span>
+            <span>·</span>
+            <a href="${escapeHtml(hnLink(s.id))}" target="_blank" rel="noopener" class="text-stone-700 hover:underline">${comments} comentarios</a>
+          </div>
+          ${s.textSnippet ? `<p class="mt-2 text-sm text-stone-700">${escapeHtml(s.textSnippet)}</p>` : ''}
+          ${s.titleEs && s.titleEs !== s.title ? `<p class="mt-2 text-xs italic text-stone-500">${escapeHtml(s.title)}</p>` : ''}
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    function isGithub(url?: string): boolean {
+      return /github\.com/i.test(url || '');
+    }
+
+    function renderHero(s: Story): string {
+      const url = s.url || hnLink(s.id);
+      const points = (s.score ?? 0).toLocaleString('es-ES');
+      const comments = (s.descendants ?? 0).toLocaleString('es-ES');
+      const heroImg = s.image
+        ? `<img src="${escapeHtml(s.image)}" alt="" class="mb-4 h-64 w-full rounded-xl object-cover" loading="lazy" />`
+        : '';
+      return `
+        <article class="overflow-hidden border-b-2 border-stone-900 pb-6">
+          ${heroImg}
+          <div class="flex items-start gap-3">
+            <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="text-3xl font-bold leading-tight text-orange-400 hover:underline">
+              ${escapeHtml(s.titleEs || s.title)}
+            </a>
+          </div>
+          ${s.textSnippet ? `<p class="mt-3 text-base text-stone-700">${escapeHtml(s.textSnippet)}</p>` : ''}
+          <div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-stone-600">
+            <span class="font-semibold text-orange-300">${points} puntos</span>
+            <span>·</span>
+            <span>por ${escapeHtml(s.by || 'anónimo')}</span>
+            <span>·</span>
+            <span>${timeAgo(s.time)}</span>
+            <span>·</span>
+            <a href="${escapeHtml(hnLink(s.id))}" target="_blank" rel="noopener" class="text-stone-700 hover:underline">${comments} comentarios</a>
+          </div>
+          ${s.titleEs && s.titleEs !== s.title ? `<p class="mt-3 text-xs italic text-stone-500">${escapeHtml(s.rawTitle)}</p>` : ''}
+        </article>
+      `;
+    }
+
+    function renderGithubItem(s: Story): string {
+      const url = s.url || hnLink(s.id);
+      const points = (s.score ?? 0).toLocaleString('es-ES');
+      return `
+        <article class="border-b border-stone-200 py-2">
+          <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="text-sm font-medium text-stone-900 hover:text-orange-700">
+            ${escapeHtml(s.titleEs || s.title)}
+          </a>
+          <div class="mt-0.5 text-xs text-stone-500">${points} pts · ${escapeHtml(s.by || 'anónimo')}</div>
+        </article>
+      `;
+    }
+
+    function renderAll() {
+      if (loadedStories.length === 0) {
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+      heroEl.classList.remove('hidden');
+      heroEl.innerHTML = renderHero(loadedStories[0]);
+      const rest = loadedStories.slice(1);
+      const gh = rest.filter((s) => isGithub(s.url));
+      const main = rest.filter((s) => !isGithub(s.url));
+      gridEl.innerHTML = main.map(renderCard).join('');
+      githubEl.innerHTML = gh.length
+        ? gh.map(renderGithubItem).join('')
+        : '<p class="text-sm text-stone-500">Sin repositorios en esta carga.</p>';
+    }
+
+    function setLoading(v: boolean) {
+      loading = v;
+      refreshBtn.disabled = v;
+      loadMoreBtn.disabled = v;
+      status.textContent = v ? 'Cargando…' : '';
+    }
+
+    async function loadBatch() {
+      if (loading) return;
+      if (offset >= allIds.length) {
+        loadMoreBtn.classList.add('hidden');
+        return;
+      }
+      setLoading(true);
+      errorBox.classList.add('hidden');
+
+      try {
+        const batchIds = allIds.slice(offset, offset + PAGE_SIZE);
+        const items = await Promise.all(batchIds.map((id) => fetchItem(id)));
+        const stories: Story[] = items
+          .filter((it): it is NonNullable<typeof it> => !!it && !it.deleted && !it.dead)
+          .map((it) => {
+            const rawTitle = it.title || '(sin título)';
+            const title = rawTitle.replace(/^Show HN:\s*/i, '').trim();
+            return {
+              id: it.id,
+              title,
+              rawTitle,
+              titleEs: title,
+              url: it.url,
+              score: it.score,
+              by: it.by,
+              time: it.time,
+              descendants: it.descendants,
+              text: it.text,
+            };
+          });
+
+        // Traducción al vuelo (concurrencia 2)
+        const translated = await mapLimit(stories, 2, async (s, i) => {
+          const titleEs = await toSpanish(s.title);
+          let snippet = s.text ? stripHtml(s.text) : '';
+          let image = '';
+          // Contexto/imagen del enlace para las 10 primeras (caché)
+          if (s.url && offset + i < 10) {
+            const ctx = await fetchContext(s.url);
+            if (!snippet) snippet = ctx.text;
+            image = ctx.image;
+          }
+          // Traducimos descripción en las 10 primeras
+          if (snippet && offset + i < 10) {
+            snippet = await toSpanish(snippet);
+          }
+          console.log('[HN]', s.id, s.title, '->', snippet || '(sin descripción)', image ? '| img: ' + image : '');
+          return { ...s, titleEs, textSnippet: snippet, image };
+        });
+
+        if (offset === 0) {
+          skeletons.classList.add('hidden');
+          loadedStories = [];
+        }
+        loadedStories = loadedStories.concat(translated);
+        renderAll();
+
+        offset += PAGE_SIZE;
+        empty.classList.toggle('hidden', loadedStories.length > 0);
+
+        const hasMore = offset < allIds.length;
+        loadMoreBtn.classList.toggle('hidden', !hasMore);
+      } catch (err) {
+        console.error(err);
+        errorBox.textContent = 'Error al cargar historias. Intenta de nuevo.';
+        errorBox.classList.remove('hidden');
+        skeletons.classList.add('hidden');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function init() {
+      offset = 0;
+      loadedStories = [];
+      heroEl.innerHTML = '';
+      heroEl.classList.add('hidden');
+      gridEl.innerHTML = '';
+      githubEl.innerHTML = '';
+      skeletons.classList.remove('hidden');
+      empty.classList.add('hidden');
+      errorBox.classList.add('hidden');
+      loadMoreBtn.classList.add('hidden');
+
+      try {
+        const [topIds, bestIds] = await Promise.all([
+          fetchFeedIds('top', 40),
+          fetchFeedIds('best', 40),
+        ]);
+        allIds = [...new Set([...topIds, ...bestIds])].slice(0, TOTAL_FETCH);
+        await loadBatch();
+      } catch (err) {
+        console.error(err);
+        skeletons.classList.add('hidden');
+        errorBox.textContent = 'No se pudo conectar con Hacker News.';
+        errorBox.classList.remove('hidden');
+      }
+    }
+
+    refreshBtn.addEventListener('click', () => init());
+    loadMoreBtn.addEventListener('click', loadBatch);
+
+    init();
+  </script>
 </Layout>
