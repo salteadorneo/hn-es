@@ -21,28 +21,22 @@ import Layout from '../layouts/Layout.astro';
   <main class="mx-auto max-w-6xl px-4 py-6">
     <div id="skeletons" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 9 }).map(() => (
-        <div class="animate-pulse rounded-xl border border-stone-300 bg-white p-4">
-          <div class="h-5 w-3/4 rounded bg-stone-200"></div>
+        <div class="animate-pulse border-b border-stone-300 py-4">
+          <div class="mb-3 h-44 w-full rounded bg-stone-200"></div>
+          <div class="h-6 w-5/6 rounded bg-stone-200"></div>
+          <div class="mt-2 h-6 w-2/3 rounded bg-stone-200"></div>
           <div class="mt-3 h-3 w-1/2 rounded bg-stone-200"></div>
+          <div class="mt-2 h-3 w-full rounded bg-stone-200"></div>
         </div>
       ))}
     </div>
 
     <section id="hero" class="hidden mb-6"></section>
 
-    <div class="grid gap-6 lg:grid-cols-3">
-      <section class="lg:col-span-2">
-        <h2 class="mb-3 text-lg font-semibold text-stone-900">Últimas noticias</h2>
-        <div id="grid" class="grid gap-4 sm:grid-cols-2"></div>
-      </section>
-      <aside>
-        <h2 class="mb-3 flex items-center gap-2 text-lg font-semibold text-stone-900">
-          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.69-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.53-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.7 5.39-5.27 5.67.41.36.78 1.06.78 2.14 0 1.55-.01 2.8-.01 3.18 0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5z"/></svg>
-          Repositorios GitHub
-        </h2>
-        <div id="github" class="space-y-3"></div>
-      </aside>
-    </div>
+    <section>
+      <h2 class="mb-3 text-lg font-semibold text-stone-900">Últimas noticias</h2>
+      <div id="grid" class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"></div>
+    </section>
 
     <div id="empty" class="hidden rounded-xl border border-stone-300 bg-stone-100 p-8 text-center text-stone-600">
       No hay historias disponibles.
@@ -91,7 +85,6 @@ import Layout from '../layouts/Layout.astro';
     const skeletons = document.getElementById('skeletons')!;
     const heroEl = document.getElementById('hero')!;
     const gridEl = document.getElementById('grid')!;
-    const githubEl = document.getElementById('github')!;
     const empty = document.getElementById('empty')!;
     const errorBox = document.getElementById('error')!;
     const status = document.getElementById('status')!;
@@ -113,44 +106,91 @@ import Layout from '../layouts/Layout.astro';
       return (tmp.value || '').replace(/\s+/g, ' ').trim();
     }
 
+    function mdToHtml(md: string): string {
+      if (!md) return '';
+      // Escapar HTML
+      let s = md
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      // Eliminar imágenes markdown y URLs sueltas
+      s = s.replace(/!\[[^\]]*\]\([^)]*\)/g, '');
+      s = s.replace(/https?:\/\/\S+/g, '');
+      // Enlaces
+      s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '$1');
+      // Negrita y cursiva
+      s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      // Encabezados
+      s = s.replace(/^### (.+)$/gm, '<h4 class="mt-2 font-serif font-bold text-stone-900">$1</h4>');
+      s = s.replace(/^## (.+)$/gm, '<h3 class="mt-2 font-serif font-bold text-stone-900">$1</h3>');
+      s = s.replace(/^# (.+)$/gm, '<h2 class="mt-2 font-serif font-bold text-stone-900">$1</h2>');
+      // Listas simples
+      const lines = s.split(/\n/);
+      const out: string[] = [];
+      let inList = false;
+      for (const line of lines) {
+        const m = line.match(/^\s*[-*]\s+(.+)/);
+        if (m) {
+          if (!inList) { out.push('<ul class="ml-5 list-disc space-y-1">'); inList = true; }
+          out.push(`<li>${m[1]}</li>`);
+        } else {
+          if (inList) { out.push('</ul>'); inList = false; }
+          if (line.trim() === '') out.push('</p><p class="mt-2">');
+          else if (line.trim().startsWith('<h') || line.trim().startsWith('<ul') || line.trim().startsWith('</ul>')) out.push(line);
+          else out.push(line + '<br>');
+        }
+      }
+      if (inList) out.push('</ul>');
+      s = out.join('\n');
+      // Párrafos
+      if (!/^<[hupul]/.test(s.trim())) s = `<p>${s}</p>`;
+      // Limpiar párrafos vacíos
+      s = s.replace(/<p>\s*<\/p>/g, '');
+      return s;
+    }
+
     function renderCard(s: Story): string {
       const url = s.url || hnLink(s.id);
       const comments = (s.descendants ?? 0).toLocaleString('es-ES');
       const points = (s.score ?? 0).toLocaleString('es-ES');
-      const big = (s.score ?? 0) >= 300;
-      const mid = (s.score ?? 0) >= 100;
-      const titleSize = big ? 'text-2xl' : mid ? 'text-xl' : 'text-lg';
-      const span = big ? 'sm:col-span-2' : '';
+      const score = s.score ?? 0;
+      const titleSize =
+        score >= 500 ? 'text-3xl' :
+        score >= 300 ? 'text-2xl' :
+        score >= 150 ? 'text-xl' :
+        score >= 50 ? 'text-lg' :
+        'text-base';
+      const span = score >= 500 ? 'sm:col-span-2' : '';
+      const isGithub = /github\.com/i.test(s.url || '');
+      const ghIcon = isGithub
+        ? `<svg class="inline-block h-5 w-5 shrink-0 text-stone-700" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.69-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.53-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.7 5.39-5.27 5.67.41.36.78 1.06.78 2.14 0 1.55-.01 2.8-.01 3.18 0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5z"/></svg>`
+        : '';
       const thumb = s.image
-        ? `<img src="${escapeHtml(s.image)}" alt="" class="h-20 w-20 shrink-0 rounded-lg object-cover" loading="lazy" />`
+        ? `<img src="${escapeHtml(s.image)}" alt="" class="mb-3 h-44 w-full rounded object-cover" loading="lazy" />`
         : '';
       return `
-        <article class="group border-b border-stone-300 py-4 ${span}">
-          <div class="flex gap-3">
-            ${thumb}
-            <div class="min-w-0 flex-1">
-              <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="block ${titleSize} font-serif font-bold leading-tight text-stone-900 hover:text-orange-700">
-                ${escapeHtml(s.titleEs || s.title)}
-              </a>
+        <article class="group border-b border-stone-300 py-6 ${span}">
+          ${thumb}
+          ${s.rawTitle && s.rawTitle !== (s.titleEs || s.title) ? `<p class="mb-1 text-xs italic text-stone-500">${escapeHtml(s.rawTitle)}</p>` : ''}
+          <div class="flex items-start gap-2">
+            ${ghIcon}
+            <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="block ${titleSize} font-serif font-bold leading-tight text-stone-900 hover:text-orange-700">
+              ${escapeHtml(s.titleEs || s.title)}
+            </a>
+          </div>
           <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-stone-600">
-            <span>${points} puntos</span>
-            <span>·</span>
             <span>por ${escapeHtml(s.by || 'anónimo')}</span>
             <span>·</span>
             <span>${timeAgo(s.time)}</span>
             <span>·</span>
             <a href="${escapeHtml(hnLink(s.id))}" target="_blank" rel="noopener" class="text-stone-700 hover:underline">${comments} comentarios</a>
           </div>
-          ${s.textSnippet ? `<p class="mt-2 text-sm text-stone-700">${escapeHtml(s.textSnippet)}</p>` : ''}
-          ${s.titleEs && s.titleEs !== s.title ? `<p class="mt-2 text-xs italic text-stone-500">${escapeHtml(s.title)}</p>` : ''}
+          ${s.textSnippet ? `<div class="mt-2 text-sm text-stone-700">${mdToHtml(s.textSnippet)}</div>` : ''}
             </div>
           </div>
         </article>
       `;
-    }
-
-    function isGithub(url?: string): boolean {
-      return /github\.com/i.test(url || '');
     }
 
     function renderHero(s: Story): string {
@@ -158,40 +198,27 @@ import Layout from '../layouts/Layout.astro';
       const points = (s.score ?? 0).toLocaleString('es-ES');
       const comments = (s.descendants ?? 0).toLocaleString('es-ES');
       const heroImg = s.image
-        ? `<img src="${escapeHtml(s.image)}" alt="" class="mb-4 h-64 w-full rounded-xl object-cover" loading="lazy" />`
+        ? '<img src="' + escapeHtml(s.image) + '" alt="" class="mb-4 h-80 w-full rounded object-cover" loading="lazy" />'
         : '';
       return `
         <article class="overflow-hidden border-b-2 border-stone-900 pb-6">
           ${heroImg}
+          ${s.rawTitle && s.rawTitle !== (s.titleEs || s.title) ? '<p class="mb-1 text-sm italic text-stone-500">' + escapeHtml(s.rawTitle) + '</p>' : ''}
           <div class="flex items-start gap-3">
-            <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="text-3xl font-bold leading-tight text-orange-400 hover:underline">
+            <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="text-3xl font-bold leading-tight text-stone-900 hover:text-orange-700">
               ${escapeHtml(s.titleEs || s.title)}
             </a>
           </div>
-          ${s.textSnippet ? `<p class="mt-3 text-base text-stone-700">${escapeHtml(s.textSnippet)}</p>` : ''}
+          ${s.textSnippet ? '<div class="mt-3 text-base text-stone-700">' + mdToHtml(s.textSnippet) + '</div>' : ''}
           <div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-stone-600">
-            <span class="font-semibold text-orange-300">${points} puntos</span>
-            <span>·</span>
-            <span>por ${escapeHtml(s.by || 'anónimo')}</span>
+            <span>por ${escapeHtml(s.by || 'anonimo')}</span>
             <span>·</span>
             <span>${timeAgo(s.time)}</span>
             <span>·</span>
             <a href="${escapeHtml(hnLink(s.id))}" target="_blank" rel="noopener" class="text-stone-700 hover:underline">${comments} comentarios</a>
+            <span>·</span>
+            <span class="text-stone-500">${escapeHtml(s.url ? domainOf(s.url) : 'news.ycombinator.com')}</span>
           </div>
-          ${s.titleEs && s.titleEs !== s.title ? `<p class="mt-3 text-xs italic text-stone-500">${escapeHtml(s.rawTitle)}</p>` : ''}
-        </article>
-      `;
-    }
-
-    function renderGithubItem(s: Story): string {
-      const url = s.url || hnLink(s.id);
-      const points = (s.score ?? 0).toLocaleString('es-ES');
-      return `
-        <article class="border-b border-stone-200 py-2">
-          <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="text-sm font-medium text-stone-900 hover:text-orange-700">
-            ${escapeHtml(s.titleEs || s.title)}
-          </a>
-          <div class="mt-0.5 text-xs text-stone-500">${points} pts · ${escapeHtml(s.by || 'anónimo')}</div>
         </article>
       `;
     }
@@ -205,12 +232,7 @@ import Layout from '../layouts/Layout.astro';
       heroEl.classList.remove('hidden');
       heroEl.innerHTML = renderHero(loadedStories[0]);
       const rest = loadedStories.slice(1);
-      const gh = rest.filter((s) => isGithub(s.url));
-      const main = rest.filter((s) => !isGithub(s.url));
-      gridEl.innerHTML = main.map(renderCard).join('');
-      githubEl.innerHTML = gh.length
-        ? gh.map(renderGithubItem).join('')
-        : '<p class="text-sm text-stone-500">Sin repositorios en esta carga.</p>';
+      gridEl.innerHTML = rest.map(renderCard).join('');
     }
 
     function setLoading(v: boolean) {
@@ -298,7 +320,6 @@ import Layout from '../layouts/Layout.astro';
       heroEl.innerHTML = '';
       heroEl.classList.add('hidden');
       gridEl.innerHTML = '';
-      githubEl.innerHTML = '';
       skeletons.classList.remove('hidden');
       empty.classList.add('hidden');
       errorBox.classList.add('hidden');
