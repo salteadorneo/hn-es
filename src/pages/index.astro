@@ -13,7 +13,6 @@ import Layout from '../layouts/Layout.astro';
       </div>
       <div class="mt-2 border-t border-stone-300 pt-2 text-center">
         <h1 class="font-serif text-4xl font-black tracking-tight text-stone-900 sm:text-5xl">Hacker News en Español</h1>
-        <p class="mt-1 text-xs uppercase tracking-[0.3em] text-stone-500">Edición digital · traducción al vuelo</p>
       </div>
     </div>
   </header>
@@ -101,8 +100,13 @@ import Layout from '../layouts/Layout.astro';
     }
 
     function stripHtml(html: string): string {
+      // Convertir enlaces HTML a markdown para preservarlos en la descripción
+      let h = html.replace(/<a\b[^>]*?\shref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, url, text) => {
+        const t = text.replace(/<[^>]*>/g, '').trim();
+        return `[${t}](${url})`;
+      });
       const tmp = document.createElement('textarea');
-      tmp.innerHTML = html.replace(/<[^>]*>/g, ' ');
+      tmp.innerHTML = h.replace(/<[^>]*>/g, ' ');
       return (tmp.value || '').replace(/\s+/g, ' ').trim();
     }
 
@@ -113,11 +117,22 @@ import Layout from '../layouts/Layout.astro';
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
-      // Eliminar imágenes markdown y URLs sueltas
+      // Eliminar imágenes markdown
       s = s.replace(/!\[[^\]]*\]\([^)]*\)/g, '');
+      // Proteger enlaces markdown antes de eliminar URLs sueltas
+      const links: { text: string; url: string }[] = [];
+      s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_m, text, url) => {
+        const idx = links.length;
+        links.push({ text, url });
+        return `\u0000LINK${idx}\u0000`;
+      });
+      // Eliminar URLs sueltas restantes
       s = s.replace(/https?:\/\/\S+/g, '');
-      // Enlaces
-      s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '$1');
+      // Restaurar enlaces como anchors HTML
+      s = s.replace(/\u0000LINK(\d+)\u0000/g, (_m, i) => {
+        const { text, url } = links[Number(i)];
+        return `<a href="${url}" target="_blank" rel="noopener" class="text-stone-700 hover:underline">${text}</a>`;
+      });
       // Negrita y cursiva
       s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
       s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
