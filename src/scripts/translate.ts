@@ -1,6 +1,6 @@
 import { NO_TRANSLATE_UNIQUE } from './dictionary';
 
-const KEY = 'hn-es-cache-v6';
+const KEY = 'hn-es-cache-v7';
 
 // @ts-ignore
 const OPENROUTER_KEY = (import.meta.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY || '') as string;
@@ -47,6 +47,9 @@ const DICT_RE = new RegExp(
 
 const CAP_RE = /\b[A-ZÁÉÍÓÚÑÜ][A-Za-zÁÉÍÓÚÑÜáéíóúñü0-9'-]*\b/g;
 
+// "I" va siempre en mayúscula en inglés, pero es el pronombre "yo", no un nombre propio.
+const ENGLISH_I = /^I(?:['’](?:m|ve|ll|d))?$/;
+
 export function protect(text: string): { text: string; tokens: string[] } {
   const tokens: string[] = [];
   let out = text.replace(DICT_RE, (match) => {
@@ -56,6 +59,7 @@ export function protect(text: string): { text: string; tokens: string[] } {
   });
   out = out.replace(CAP_RE, (match, offset, str) => {
     if (isSentenceStart(str, offset)) return match;
+    if (ENGLISH_I.test(match)) return match;
     const idx = tokens.length;
     tokens.push(match);
     return `__NT${idx}__`;

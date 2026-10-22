@@ -1,0 +1,299 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { fetchFeedIds, fetchItem, domainOf, timeAgo, hnLink, fetchContext, fetchPageImages } from '../scripts/hn';
+import type { ContextImage } from '../scripts/hn';
+import { toSpanish, mapLimit, OPENROUTER_ENABLED } from '../scripts/translate';
+import { isLargeImage, titleSize, stripHtml, mdToHtml } from '../lib/format';
+
+type StoryImage = ContextImage;
+type Idea = {
+  id: number;
+  title: string;
+  titleEs: string;
+  url?: string;
+  score: number;
+  by?: string;
+  time?: number;
+  descendants?: number;
+  text?: string;
+  textSnippet?: string;
+  images?: StoryImage[];
+};
+
+const PAGE_SIZE = 60;
+const SNIPPET_LIMIT = OPENROUTER_ENABLED ? 1800 : 450;
+
+let ideas: Idea[] = [];
+try {
+  const ids = await fetchFeedIds('show', PAGE_SIZE);
+  const items = await Promise.all(ids.map((id) => fetchItem(id)));
+  const stories: Idea[] = items
+    .filter((it): it is NonNullable<typeof it> => !!it && !it.deleted && !it.dead)
+    .map((it) => {
+      const title = (it.title || '(sin título)').replace(/^Show HN:\s*/i, '').trim();
+      return {
+        id: it.id,
+        title,
+        titleEs: title,
+        url: it.url,
+        score: it.score ?? 0,
+        by: it.by,
+        time: it.time,
+        descendants: it.descendants,
+        text: it.text,
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  ideas = await mapLimit(stories, 4, async (s, i) => {
+    const titleEs = await toSpanish(s.title);
+    let snippet = s.text ? stripHtml(s.text) : '';
+    if (snippet.length > SNIPPET_LIMIT) snippet = snippet.slice(0, SNIPPET_LIMIT - 1) + '…';
+    let images: StoryImage[] = [];
+    if (s.url && i < 12) {
+      const ctx = await fetchContext(s.url);
+      if (!snippet) snippet = ctx.text;
+      if (snippet.length > SNIPPET_LIMIT) snippet = snippet.slice(0, SNIPPET_LIMIT - 1) + '…';
+      images = ctx.images || [];
+    } else if (s.url && i < 25) {
+      images = await fetchPageImages(s.url);
+    }
+    if (snippet) {
+      snippet = await toSpanish(snippet);
+    }
+    return { ...s, titleEs, textSnippet: snippet, images };
+  });
+} catch (err) {
+  console.error(err);
+  ideas = [];
+}
+
+const hero = ideas[0];
+const rest = ideas.slice(1);
+const heroHasLargeImage = !!(hero?.images?.length && isLargeImage(hero.images[0]));
+const lastUpdated = new Date().toLocaleString('es-ES', { dateStyle: 'full', timeStyle: 'short' });
+const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+---
+
+<Layout title="Show HN en Español | Hacker News en Español">
+  <header class="site-header sticky top-0 z-30 border-b border-rule bg-paper/85 backdrop-blur-md">
+    <div class="mx-auto max-w-6xl px-4">
+      <div class="header-strip flex items-center justify-between gap-3 border-b border-rule/70 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
+        <span>{today}</span>
+        <span class="hidden items-center gap-2 sm:flex">
+          <span class="inline-block h-1.5 w-1.5 bg-accent" aria-hidden="true"></span>
+          Actualizado {lastUpdated}
+        </span>
+      </div>
+      <div class="header-main flex items-center justify-center gap-3 py-5">
+        <span class="brand-mark" aria-hidden="true">Y</span>
+        <h1 class="nameplate text-balance text-ink">
+          Show HN <span class="font-light italic">en Español</span>
+        </h1>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-4 py-8">
+    {ideas.length === 0 && (
+      <div class="border border-red-400/40 bg-red-500/10 p-4 font-mono text-xs text-red-300">
+        No se pudo conectar con Hacker News.
+      </div>
+    )}
+
+    {hero && (
+      <section class="mb-8">
+        <article class={`grid gap-8 border-b border-rule pb-8 ${heroHasLargeImage ? 'lg:grid-cols-12' : ''}`}>
+          <div class={heroHasLargeImage ? 'lg:col-span-7' : ''}>
+            <div class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[10px] uppercase tracking-[0.18em]">
+              <span class="bg-accent px-2 py-1 font-semibold text-paper">{hero.score.toLocaleString('es-ES')} pts</span>
+              <span class="text-muted">Idea destacada</span>
+            </div>
+
+            {hero.images && hero.images.length > 0 && !heroHasLargeImage && (
+              <a
+                href={hero.url || hnLink(hero.id)}
+                target="_blank"
+                rel="noopener"
+                aria-label={hero.titleEs || hero.title}
+                class="float-right mb-4 ml-4"
+              >
+                <img src={hero.images[0].src} alt="" class="h-28 w-28 border border-rule object-cover" loading="lazy" />
+              </a>
+            )}
+
+            <a
+              href={hero.url || hnLink(hero.id)}
+              target="_blank"
+              rel="noopener"
+              class="hn-title block font-serif text-4xl font-semibold leading-[1.03] tracking-[-0.025em] text-ink transition-colors hover:text-accent sm:text-5xl lg:text-[3.4rem]"
+            >
+              {hero.titleEs || hero.title}
+            </a>
+
+            {hero.textSnippet && (
+              <div class="story-body mt-4 line-clamp-8 text-base leading-relaxed text-soft" set:html={mdToHtml(hero.textSnippet)} />
+            )}
+
+            {hero.images && hero.images.length > 1 && !heroHasLargeImage && (
+              <div class="mt-4 flex flex-wrap gap-2">
+                {hero.images.slice(1, 4).map((img) => (
+                  <a href={hero.url || hnLink(hero.id)} target="_blank" rel="noopener" aria-label={hero.titleEs || hero.title}>
+                    <img src={img.src} alt="" class="h-14 w-14 border border-rule object-cover" loading="lazy" />
+                  </a>
+                ))}
+              </div>
+            )}
+
+            <div class="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-muted">
+              <span>por <span class="text-soft">{hero.by || 'anónimo'}</span></span>
+              <span class="text-rule" aria-hidden="true">/</span>
+              <span>{timeAgo(hero.time)}</span>
+              <span class="text-rule" aria-hidden="true">/</span>
+              <a href={hnLink(hero.id)} target="_blank" rel="noopener" class="text-soft transition-colors hover:text-accent">
+                {(hero.descendants ?? 0).toLocaleString('es-ES')} comentarios
+              </a>
+              {hero.url && (
+                <>
+                  <span class="text-rule" aria-hidden="true">/</span>
+                  <span class="truncate">{domainOf(hero.url)}</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {heroHasLargeImage && (
+            <div class="lg:col-span-5">
+              <a href={hero.url || hnLink(hero.id)} target="_blank" rel="noopener" aria-label={hero.titleEs || hero.title} class="block">
+                <img src={hero.images![0].src} alt="" class="aspect-[4/3] w-full border border-rule object-cover" loading="lazy" />
+              </a>
+              {hero.images!.length > 1 && (
+                <div class="mt-2 grid grid-cols-3 gap-2">
+                  {hero.images!.slice(1, 4).map((img) => (
+                    <a href={hero.url || hnLink(hero.id)} target="_blank" rel="noopener" aria-label={hero.titleEs || hero.title}>
+                      <img src={img.src} alt="" class="aspect-square w-full border border-rule object-cover" loading="lazy" />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </article>
+      </section>
+    )}
+
+    {rest.length > 0 && (
+      <section>
+        <div class="mb-4 flex items-baseline justify-between gap-4 border-b border-rule pb-2">
+          <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">Ideas de la comunidad</span>
+          <span class="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">{ideas.length} historias · ordenadas por puntos</span>
+        </div>
+
+        <div class="grid gap-px border border-rule bg-rule sm:grid-cols-2 lg:grid-cols-3">
+          {rest.map((s) => {
+            const span = s.score >= 500 ? 'sm:col-span-2' : '';
+            return (
+              <article class={`group flex flex-col bg-paper p-5 transition-colors duration-200 hover:bg-surface sm:p-6 ${span}`}>
+                <div class="mb-3 flex items-start justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.16em]">
+                  <span class="shrink-0 text-accent">
+                    {s.score.toLocaleString('es-ES')}<span class="text-muted"> pts</span>
+                  </span>
+                  {s.url && <span class="truncate text-right text-muted">{domainOf(s.url)}</span>}
+                </div>
+
+                {s.images && s.images.length > 0 && isLargeImage(s.images[0]) && (
+                  <a
+                    href={s.url || hnLink(s.id)}
+                    target="_blank"
+                    rel="noopener"
+                    aria-label={s.titleEs || s.title}
+                    class="mb-4 block"
+                  >
+                    <img src={s.images[0].src} alt="" class="aspect-[16/9] w-full border border-rule object-cover" loading="lazy" />
+                  </a>
+                )}
+
+                {s.images && s.images.length > 0 && !isLargeImage(s.images[0]) && (
+                  <a
+                    href={s.url || hnLink(s.id)}
+                    target="_blank"
+                    rel="noopener"
+                    aria-label={s.titleEs || s.title}
+                    class="float-right mb-3 ml-3"
+                  >
+                    <img src={s.images[0].src} alt="" class="h-20 w-20 border border-rule object-cover" loading="lazy" />
+                  </a>
+                )}
+
+                <a
+                  href={s.url || hnLink(s.id)}
+                  target="_blank"
+                  rel="noopener"
+                  class={`hn-title block font-serif ${titleSize(s.score)} font-semibold leading-snug tracking-[-0.01em] text-ink transition-colors group-hover:text-accent`}
+                >
+                  {s.titleEs || s.title}
+                </a>
+
+                {s.textSnippet && (
+                  <div class="story-body mt-2 line-clamp-8 text-sm leading-relaxed text-soft" set:html={mdToHtml(s.textSnippet)} />
+                )}
+
+                {s.images && s.images.length > 1 && (
+                  <div class="mt-3 flex flex-wrap gap-1.5">
+                    {s.images.slice(1, 4).map((img) => (
+                      <a href={s.url || hnLink(s.id)} target="_blank" rel="noopener" aria-label={s.titleEs || s.title}>
+                        <img src={img.src} alt="" class="h-11 w-11 border border-rule object-cover" loading="lazy" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                <div class="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-4 font-mono text-[10px] text-muted">
+                  <span class="text-soft">{s.by || 'anónimo'}</span>
+                  <span class="text-rule" aria-hidden="true">/</span>
+                  <span>{timeAgo(s.time)}</span>
+                  <span class="text-rule" aria-hidden="true">/</span>
+                  <a href={hnLink(s.id)} target="_blank" rel="noopener" class="text-soft transition-colors hover:text-accent">
+                    {(s.descendants ?? 0).toLocaleString('es-ES')} com.
+                  </a>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    )}
+
+    <footer class="mt-12 border-t-2 border-ink/60 pt-5 pb-6">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <a
+          class="inline-flex items-center gap-2 font-mono text-[11px] text-soft transition-colors hover:text-accent"
+          href="https://github.com/salteadorneo/hn-es"
+          target="_blank"
+          rel="noopener"
+          aria-label="Repositorio de hn-es en GitHub"
+        >
+          <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.69-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.53-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.7 5.39-5.27 5.67.41.36.78 1.06.78 2.14 0 1.55-.01 2.8-.01 3.18 0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5z" />
+          </svg>
+          <span>salteadorneo/hn-es</span>
+        </a>
+        <p class="font-mono text-[10px] leading-relaxed tracking-wide text-muted">
+          Datos de <a class="text-soft transition-colors hover:text-accent" href="https://news.ycombinator.com" target="_blank" rel="noopener">Hacker News</a>
+          · Traducción <a class="text-soft transition-colors hover:text-accent" href="https://mymemory.translated.net" target="_blank" rel="noopener">MyMemory</a>
+          · Contexto <a class="text-soft transition-colors hover:text-accent" href="https://r.jina.ai" target="_blank" rel="noopener">Jina Reader</a>
+        </p>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    const headerEl = document.querySelector('.site-header') as HTMLElement | null;
+    function updateHeader() {
+      if (!headerEl) return;
+      headerEl.classList.toggle('is-compact', window.scrollY > 64);
+    }
+    window.addEventListener('scroll', updateHeader, { passive: true });
+    updateHeader();
+  </script>
+</Layout>
