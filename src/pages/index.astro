@@ -1,12 +1,13 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { fetchFeedIds, fetchItem, domainOf, timeAgo, hnLink, fetchContext } from '../scripts/hn';
-import { toSpanish, mapLimit } from '../scripts/translate';
+import { fetchFeedIds, fetchItem, domainOf, timeAgo, hnLink, fetchContext, fetchPageImages } from '../scripts/hn';
+import type { ContextImage } from '../scripts/hn';
+import { toSpanish, mapLimit, OPENROUTER_ENABLED } from '../scripts/translate';
 
+type StoryImage = ContextImage;
 type Story = {
   id: number;
   title: string;
-  rawTitle: string;
   titleEs: string;
   url?: string;
   score?: number;
@@ -15,11 +16,16 @@ type Story = {
   descendants?: number;
   text?: string;
   textSnippet?: string;
-  image?: string;
+  images?: StoryImage[];
 };
 
 const PAGE_SIZE = 20;
-const TOTAL_FETCH = 60;
+const TOTAL_FETCH = PAGE_SIZE;
+const SNIPPET_LIMIT = OPENROUTER_ENABLED ? 1800 : 450;
+
+function isLargeImage(img: StoryImage): boolean {
+  return (img.width >= 500 || img.height >= 350 || img.width * img.height >= 150000);
+}
 
 function titleSize(score: number): string {
   const s = score ?? 0;
@@ -118,7 +124,6 @@ try {
       return {
         id: it.id,
         title,
-        rawTitle,
         titleEs: title,
         url: it.url,
         score: it.score,
@@ -129,19 +134,26 @@ try {
       };
     });
 
-  loadedStories = await mapLimit(stories, 2, async (s, i) => {
+  loadedStories = await mapLimit(stories, 4, async (s, i) => {
+    const __t0 = Date.now();
+    console.log('[HN][story] start', i, s.id, s.url || '(no url)');
     const titleEs = await toSpanish(s.title);
     let snippet = s.text ? stripHtml(s.text) : '';
-    let image = '';
+    if (snippet.length > SNIPPET_LIMIT) snippet = snippet.slice(0, SNIPPET_LIMIT - 1) + '…';
+    let images: StoryImage[] = [];
     if (s.url && i < 10) {
       const ctx = await fetchContext(s.url);
       if (!snippet) snippet = ctx.text;
-      image = ctx.image;
+      if (snippet.length > SNIPPET_LIMIT) snippet = snippet.slice(0, SNIPPET_LIMIT - 1) + '…';
+      images = ctx.images || [];
+    } else if (s.url && i < 15) {
+      images = await fetchPageImages(s.url);
     }
-    if (snippet && i < 10) {
+    if (snippet) {
       snippet = await toSpanish(snippet);
     }
-    return { ...s, titleEs, textSnippet: snippet, image };
+    console.log('[HN][story] done', i, s.id, 'images=', images.length, 'snippet=', snippet.length, 'ms=', Date.now() - __t0);
+    return { ...s, titleEs, textSnippet: snippet, images };
   });
 } catch (err) {
   console.error(err);
@@ -177,11 +189,18 @@ const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'nu
     {hero && (
       <section class="mb-6">
         <article class="overflow-hidden border-b-2 border-stone-900 pb-6">
-          {hero.image && (
-            <img src={hero.image} alt="" class="mb-4 h-80 w-full rounded object-cover" loading="lazy" />
+          {hero.images && hero.images.length > 0 && isLargeImage(hero.images[0]) && (
+            <img src={hero.images[0].src} alt="" class="mb-4 h-80 w-full rounded object-cover" loading="lazy" />
           )}
-          {hero.rawTitle && hero.rawTitle !== (hero.titleEs || hero.title) && (
-            <p class="mb-1 text-sm italic text-stone-500">{hero.rawTitle}</p>
+          {hero.images && hero.images.length > 0 && !isLargeImage(hero.images[0]) && (
+            <img src={hero.images[0].src} alt="" class="mb-4 h-24 w-24 rounded object-cover float-right ml-4" loading="lazy" />
+          )}
+          {hero.images && hero.images.length > 1 && (
+            <div class="mb-4 flex flex-wrap gap-2">
+              {hero.images.slice(1).map((img) => (
+                <img src={img.src} alt="" class="h-20 w-20 rounded object-cover" loading="lazy" />
+              ))}
+            </div>
           )}
           <div class="flex items-start gap-3">
             <a href={hero.url || hnLink(hero.id)} target="_blank" rel="noopener" class="text-3xl font-bold leading-tight text-stone-900 hover:text-orange-700 hn-title">
@@ -213,11 +232,18 @@ const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'nu
             const span = (s.score ?? 0) >= 500 ? 'sm:col-span-2' : '';
             return (
               <article class={`group border-b border-stone-300 py-6 ${span}`}>
-                {s.image && (
-                  <img src={s.image} alt="" class="mb-3 h-44 w-full rounded object-cover" loading="lazy" />
+                {s.images && s.images.length > 0 && isLargeImage(s.images[0]) && (
+                  <img src={s.images[0].src} alt="" class="mb-3 h-44 w-full rounded object-cover" loading="lazy" />
                 )}
-                {s.rawTitle && s.rawTitle !== (s.titleEs || s.title) && (
-                  <p class="mb-1 text-xs italic text-stone-500">{s.rawTitle}</p>
+                {s.images && s.images.length > 0 && !isLargeImage(s.images[0]) && (
+                  <img src={s.images[0].src} alt="" class="mb-3 h-20 w-20 rounded object-cover float-right ml-3" loading="lazy" />
+                )}
+                {s.images && s.images.length > 1 && (
+                  <div class="mb-2 flex flex-wrap gap-1">
+                    {s.images.slice(1, 4).map((img) => (
+                      <img src={img.src} alt="" class="h-12 w-12 rounded object-cover" loading="lazy" />
+                    ))}
+                  </div>
                 )}
                 <div class="flex items-start gap-2">
                   {isGithub && (

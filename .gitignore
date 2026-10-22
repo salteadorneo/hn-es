@@ -1,6 +1,10 @@
 # build output
 dist/
 
+# generated images
+public/og-images/
+dist/og-images/
+
 # generated types
 .astro/
 

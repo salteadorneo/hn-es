@@ -29,8 +29,19 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Validate translation key
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "::error::Falta el secreto OPENROUTER_API_KEY. Añádelo en Settings > Secrets and variables > Actions para poder traducir antes de publicar."
+            exit 1
+          fi
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       - name: Build
         run: npm run build
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: openai/gpt-6-luna
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
