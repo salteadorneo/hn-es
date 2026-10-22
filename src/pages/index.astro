@@ -1,56 +1,250 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { fetchFeedIds, fetchItem, domainOf, timeAgo, hnLink, fetchContext } from '../scripts/hn';
+import { toSpanish, mapLimit } from '../scripts/translate';
+
+type Story = {
+  id: number;
+  title: string;
+  rawTitle: string;
+  titleEs: string;
+  url?: string;
+  score?: number;
+  by?: string;
+  time?: number;
+  descendants?: number;
+  text?: string;
+  textSnippet?: string;
+  image?: string;
+};
+
+const PAGE_SIZE = 20;
+const TOTAL_FETCH = 60;
+
+function titleSize(score: number): string {
+  const s = score ?? 0;
+  if (s >= 500) return 'text-4xl';
+  if (s >= 400) return 'text-4xl';
+  if (s >= 300) return 'text-3xl';
+  if (s >= 200) return 'text-2xl';
+  if (s >= 150) return 'text-xl';
+  if (s >= 50) return 'text-lg';
+  return 'text-base';
+}
+
+function stripHtml(html: string): string {
+  let h = html.replace(/<a\b[^>]*?\shref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, url, text) => {
+    const t = String(text).replace(/<[^>]*>/g, '').trim();
+    return `[${t}](${url})`;
+  });
+  const tmp = (globalThis as any).document ? document.createElement('textarea') : null;
+  if (tmp) {
+    tmp.innerHTML = h.replace(/<[^>]*>/g, ' ');
+    return (tmp.value || '').replace(/\s+/g, ' ').trim();
+  }
+  const decoded = h
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)));
+  return decoded.replace(/\s+/g, ' ').trim();
+}
+
+function mdToHtml(md: string): string {
+  if (!md) return '';
+  let s = md
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  s = s.replace(/!\[[^\]]*\]\([^)]*\)/g, '');
+  const links: { text: string; url: string }[] = [];
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_m, text, url) => {
+    const idx = links.length;
+    links.push({ text, url });
+    return `\u0000LINK${idx}\u0000`;
+  });
+  s = s.replace(/https?:\/\/\S+/g, '');
+  s = s.replace(/\u0000LINK(\d+)\u0000/g, (_m, i) => {
+    const { text, url } = links[Number(i)];
+    return `<a href="${url}" target="_blank" rel="noopener" class="text-stone-700 hover:underline">${text}</a>`;
+  });
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  s = s.replace(/^### (.+)$/gm, '<h4 class="mt-2 font-serif font-bold text-stone-900">$1</h4>');
+  s = s.replace(/^## (.+)$/gm, '<h3 class="mt-2 font-serif font-bold text-stone-900">$1</h3>');
+  s = s.replace(/^# (.+)$/gm, '<h2 class="mt-2 font-serif font-bold text-stone-900">$1</h2>');
+  const lines = s.split(/\n/);
+  const out: string[] = [];
+  let inList = false;
+  for (const line of lines) {
+    const m = line.match(/^\s*[-*]\s+(.+)/);
+    if (m) {
+      if (!inList) { out.push('<ul class="ml-5 list-disc space-y-1">'); inList = true; }
+      out.push(`<li>${m[1]}</li>`);
+    } else {
+      if (inList) { out.push('</ul>'); inList = false; }
+      if (line.trim() === '') out.push('</p><p class="mt-2">');
+      else if (line.trim().startsWith('<h') || line.trim().startsWith('<ul') || line.trim().startsWith('</ul>')) out.push(line);
+      else out.push(line + '<br>');
+    }
+  }
+  if (inList) out.push('</ul>');
+  s = out.join('\n');
+  if (!/^<[hupul]/.test(s.trim())) s = `<p>${s}</p>`;
+  s = s.replace(/<p>\s*<\/p>/g, '');
+  return s;
+}
+
+let allIds: number[] = [];
+let loadedStories: Story[] = [];
+
+try {
+  const [topIds, bestIds] = await Promise.all([
+    fetchFeedIds('top', 40),
+    fetchFeedIds('best', 40),
+  ]);
+  allIds = [...new Set([...topIds, ...bestIds])].slice(0, TOTAL_FETCH);
+
+  const items = await Promise.all(allIds.map((id) => fetchItem(id)));
+  const stories: Story[] = items
+    .filter((it): it is NonNullable<typeof it> => !!it && !it.deleted && !it.dead)
+    .map((it) => {
+      const rawTitle = it.title || '(sin título)';
+      const title = rawTitle.replace(/^Show HN:\s*/i, '').trim();
+      return {
+        id: it.id,
+        title,
+        rawTitle,
+        titleEs: title,
+        url: it.url,
+        score: it.score,
+        by: it.by,
+        time: it.time,
+        descendants: it.descendants,
+        text: it.text,
+      };
+    });
+
+  loadedStories = await mapLimit(stories, 2, async (s, i) => {
+    const titleEs = await toSpanish(s.title);
+    let snippet = s.text ? stripHtml(s.text) : '';
+    let image = '';
+    if (s.url && i < 10) {
+      const ctx = await fetchContext(s.url);
+      if (!snippet) snippet = ctx.text;
+      image = ctx.image;
+    }
+    if (snippet && i < 10) {
+      snippet = await toSpanish(snippet);
+    }
+    return { ...s, titleEs, textSnippet: snippet, image };
+  });
+} catch (err) {
+  console.error(err);
+  loadedStories = [];
+}
+
+const hero = loadedStories[0];
+const rest = loadedStories.slice(1);
+const lastUpdated = new Date().toLocaleString('es-ES', { dateStyle: 'full', timeStyle: 'short' });
+const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 ---
+
 <Layout title="Hacker News en Español">
   <header class="sticky top-0 z-10 border-b-2 border-stone-400 bg-stone-50/90 backdrop-blur">
-    <div class="mx-auto max-w-6xl px-4 py-3">
+    <div class="mx-auto max-w-6xl px-4 py-3 transition-all duration-200">
       <div class="flex items-center justify-between gap-3">
-        <div class="text-xs uppercase tracking-widest text-stone-500">{new Date().toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</div>
-        <div class="flex items-center gap-2">
-          <span id="status" class="text-xs text-stone-600"></span>
-          <button id="refresh" class="rounded border border-stone-400 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-stone-900 hover:bg-stone-200 disabled:opacity-50">Actualizar</button>
-        </div>
+        <div class="text-xs uppercase tracking-widest text-stone-500">{today}</div>
+        <div class="text-xs text-stone-600">Última actualización: {lastUpdated}</div>
       </div>
       <div class="mt-2 border-t border-stone-300 pt-2 text-center">
-        <h1 class="font-serif text-4xl font-black tracking-tight text-stone-900 sm:text-5xl">Hacker News en Español</h1>
+        <h1 class="font-serif text-4xl font-black tracking-tight text-stone-900 sm:text-5xl transition-all duration-200">Hacker News en Español</h1>
       </div>
     </div>
   </header>
 
   <main class="mx-auto max-w-6xl px-4 py-6">
-    <div id="skeletons" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {Array.from({ length: 9 }).map(() => (
-        <div class="animate-pulse border-b border-stone-300 py-4">
-          <div class="mb-3 h-44 w-full rounded bg-stone-200"></div>
-          <div class="h-6 w-5/6 rounded bg-stone-200"></div>
-          <div class="mt-2 h-6 w-2/3 rounded bg-stone-200"></div>
-          <div class="mt-3 h-3 w-1/2 rounded bg-stone-200"></div>
-          <div class="mt-2 h-3 w-full rounded bg-stone-200"></div>
+    {loadedStories.length === 0 && (
+      <div class="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">
+        No se pudo conectar con Hacker News.
+      </div>
+    )}
+
+    {hero && (
+      <section class="mb-6">
+        <article class="overflow-hidden border-b-2 border-stone-900 pb-6">
+          {hero.image && (
+            <img src={hero.image} alt="" class="mb-4 h-80 w-full rounded object-cover" loading="lazy" />
+          )}
+          {hero.rawTitle && hero.rawTitle !== (hero.titleEs || hero.title) && (
+            <p class="mb-1 text-sm italic text-stone-500">{hero.rawTitle}</p>
+          )}
+          <div class="flex items-start gap-3">
+            <a href={hero.url || hnLink(hero.id)} target="_blank" rel="noopener" class="text-3xl font-bold leading-tight text-stone-900 hover:text-orange-700 hn-title">
+              {hero.titleEs || hero.title}
+            </a>
+          </div>
+          {hero.textSnippet && (
+            <div class="mt-3 text-base text-stone-700 line-clamp-8" set:html={mdToHtml(hero.textSnippet)} />
+          )}
+          <div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-stone-600">
+            <span>por {hero.by || 'anonimo'}</span>
+            <span>·</span>
+            <span>{timeAgo(hero.time)}</span>
+            <span>·</span>
+            <a href={hnLink(hero.id)} target="_blank" rel="noopener" class="text-stone-700 hover:underline">{(hero.descendants ?? 0).toLocaleString('es-ES')} comentarios</a>
+            <span>·</span>
+            <span class="text-stone-500">{domainOf(hero.url)}</span>
+          </div>
+        </article>
+      </section>
+    )}
+
+    {rest.length > 0 && (
+      <section>
+        <h2 class="mb-3 text-lg font-semibold text-stone-900">Últimas noticias</h2>
+        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {rest.map((s) => {
+            const isGithub = /github\.com/i.test(s.url || '');
+            const span = (s.score ?? 0) >= 500 ? 'sm:col-span-2' : '';
+            return (
+              <article class={`group border-b border-stone-300 py-6 ${span}`}>
+                {s.image && (
+                  <img src={s.image} alt="" class="mb-3 h-44 w-full rounded object-cover" loading="lazy" />
+                )}
+                {s.rawTitle && s.rawTitle !== (s.titleEs || s.title) && (
+                  <p class="mb-1 text-xs italic text-stone-500">{s.rawTitle}</p>
+                )}
+                <div class="flex items-start gap-2">
+                  {isGithub && (
+                    <svg class="inline-block h-5 w-5 shrink-0 text-stone-700" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.69-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.53-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.7 5.39-5.27 5.67.41.36.78 1.06.78 2.14 0 1.55-.01 2.8-.01 3.18 0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5z" />
+                    </svg>
+                  )}
+                  <a href={s.url || hnLink(s.id)} target="_blank" rel="noopener" class={`block ${titleSize(s.score ?? 0)} font-serif font-bold leading-tight text-stone-900 hover:text-orange-700 hn-title`}>
+                    {s.titleEs || s.title}
+                  </a>
+                </div>
+                <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-stone-600">
+                  <span>por {s.by || 'anónimo'}</span>
+                  <span>·</span>
+                  <span>{timeAgo(s.time)}</span>
+                  <span>·</span>
+                  <a href={hnLink(s.id)} target="_blank" rel="noopener" class="text-stone-700 hover:underline">{(s.descendants ?? 0).toLocaleString('es-ES')} comentarios</a>
+                </div>
+                {s.textSnippet && (
+                  <div class="mt-2 text-sm text-stone-700 line-clamp-8" set:html={mdToHtml(s.textSnippet)} />
+                )}
+              </article>
+            );
+          })}
         </div>
-      ))}
-    </div>
-
-    <section id="hero" class="hidden mb-6"></section>
-
-    <section>
-      <h2 class="mb-3 text-lg font-semibold text-stone-900">Últimas noticias</h2>
-      <div id="grid" class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"></div>
-    </section>
-
-    <div id="empty" class="hidden rounded-xl border border-stone-300 bg-stone-100 p-8 text-center text-stone-600">
-      No hay historias disponibles.
-    </div>
-
-    <div id="error" class="hidden rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700"></div>
-
-    <div class="mt-6 text-center">
-      <button
-        id="loadmore"
-        class="hidden rounded-lg border border-stone-400 bg-white px-4 py-2 text-sm font-medium text-stone-900 hover:bg-stone-200 disabled:opacity-50"
-      >
-        Cargar más
-      </button>
-    </div>
+      </section>
+    )}
 
     <footer class="mt-10 border-t border-stone-300 pt-4 text-center text-xs text-stone-500">
       Datos de <a class="text-stone-700 hover:underline" href="https://news.ycombinator.com" target="_blank" rel="noopener">Hacker News</a>
@@ -60,305 +254,27 @@ import Layout from '../layouts/Layout.astro';
   </main>
 
   <script>
-    import { fetchFeedIds, fetchItem, domainOf, timeAgo, hnLink, fetchContext } from '../scripts/hn';
-    import { toSpanish, mapLimit } from '../scripts/translate';
-
-    type Story = {
-      id: number;
-      title: string;
-      rawTitle: string;
-      titleEs: string;
-      url?: string;
-      score?: number;
-      by?: string;
-      time?: number;
-      descendants?: number;
-      text?: string;
-      textSnippet?: string;
-      image?: string;
-    };
-
-    const PAGE_SIZE = 20;
-    const TOTAL_FETCH = 60;
-
-    const skeletons = document.getElementById('skeletons')!;
-    const heroEl = document.getElementById('hero')!;
-    const gridEl = document.getElementById('grid')!;
-    const empty = document.getElementById('empty')!;
-    const errorBox = document.getElementById('error')!;
-    const status = document.getElementById('status')!;
-    const loadMoreBtn = document.getElementById('loadmore') as HTMLButtonElement;
-    const refreshBtn = document.getElementById('refresh') as HTMLButtonElement;
-
-    let allIds: number[] = [];
-    let offset = 0;
-    let loading = false;
-    let loadedStories: Story[] = [];
-
-    function escapeHtml(s: string): string {
-      return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-    }
-
-    function stripHtml(html: string): string {
-      // Convertir enlaces HTML a markdown para preservarlos en la descripción
-      let h = html.replace(/<a\b[^>]*?\shref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, url, text) => {
-        const t = text.replace(/<[^>]*>/g, '').trim();
-        return `[${t}](${url})`;
-      });
-      const tmp = document.createElement('textarea');
-      tmp.innerHTML = h.replace(/<[^>]*>/g, ' ');
-      return (tmp.value || '').replace(/\s+/g, ' ').trim();
-    }
-
-    function mdToHtml(md: string): string {
-      if (!md) return '';
-      // Escapar HTML
-      let s = md
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-      // Eliminar imágenes markdown
-      s = s.replace(/!\[[^\]]*\]\([^)]*\)/g, '');
-      // Proteger enlaces markdown antes de eliminar URLs sueltas
-      const links: { text: string; url: string }[] = [];
-      s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_m, text, url) => {
-        const idx = links.length;
-        links.push({ text, url });
-        return `\u0000LINK${idx}\u0000`;
-      });
-      // Eliminar URLs sueltas restantes
-      s = s.replace(/https?:\/\/\S+/g, '');
-      // Restaurar enlaces como anchors HTML
-      s = s.replace(/\u0000LINK(\d+)\u0000/g, (_m, i) => {
-        const { text, url } = links[Number(i)];
-        return `<a href="${url}" target="_blank" rel="noopener" class="text-stone-700 hover:underline">${text}</a>`;
-      });
-      // Negrita y cursiva
-      s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-      s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-      // Encabezados
-      s = s.replace(/^### (.+)$/gm, '<h4 class="mt-2 font-serif font-bold text-stone-900">$1</h4>');
-      s = s.replace(/^## (.+)$/gm, '<h3 class="mt-2 font-serif font-bold text-stone-900">$1</h3>');
-      s = s.replace(/^# (.+)$/gm, '<h2 class="mt-2 font-serif font-bold text-stone-900">$1</h2>');
-      // Listas simples
-      const lines = s.split(/\n/);
-      const out: string[] = [];
-      let inList = false;
-      for (const line of lines) {
-        const m = line.match(/^\s*[-*]\s+(.+)/);
-        if (m) {
-          if (!inList) { out.push('<ul class="ml-5 list-disc space-y-1">'); inList = true; }
-          out.push(`<li>${m[1]}</li>`);
-        } else {
-          if (inList) { out.push('</ul>'); inList = false; }
-          if (line.trim() === '') out.push('</p><p class="mt-2">');
-          else if (line.trim().startsWith('<h') || line.trim().startsWith('<ul') || line.trim().startsWith('</ul>')) out.push(line);
-          else out.push(line + '<br>');
-        }
-      }
-      if (inList) out.push('</ul>');
-      s = out.join('\n');
-      // Párrafos
-      if (!/^<[hupul]/.test(s.trim())) s = `<p>${s}</p>`;
-      // Limpiar párrafos vacíos
-      s = s.replace(/<p>\s*<\/p>/g, '');
-      return s;
-    }
-
-    function renderCard(s: Story): string {
-      const url = s.url || hnLink(s.id);
-      const comments = (s.descendants ?? 0).toLocaleString('es-ES');
-      const score = s.score ?? 0;
-      const titleSize =
-        score >= 500 ? 'text-4xl' :
-        score >= 400 ? 'text-4xl' :
-        score >= 300 ? 'text-3xl' :
-        score >= 200 ? 'text-2xl' :
-        score >= 150 ? 'text-xl' :
-        score >= 50 ? 'text-lg' :
-        'text-base';
-      const span = score >= 500 ? 'sm:col-span-2' : '';
-      const isGithub = /github\.com/i.test(s.url || '');
-      const ghIcon = isGithub
-        ? `<svg class="inline-block h-5 w-5 shrink-0 text-stone-700" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.69-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.53-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.7 5.39-5.27 5.67.41.36.78 1.06.78 2.14 0 1.55-.01 2.8-.01 3.18 0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5z"/></svg>`
-        : '';
-      const thumb = s.image
-        ? `<img src="${escapeHtml(s.image)}" alt="" class="mb-3 h-44 w-full rounded object-cover" loading="lazy" />`
-        : '';
-      return `
-        <article class="group border-b border-stone-300 py-6 ${span}">
-          ${thumb}
-          ${s.rawTitle && s.rawTitle !== (s.titleEs || s.title) ? `<p class="mb-1 text-xs italic text-stone-500">${escapeHtml(s.rawTitle)}</p>` : ''}
-          <div class="flex items-start gap-2">
-            ${ghIcon}
-            <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="block ${titleSize} font-serif font-bold leading-tight text-stone-900 hover:text-orange-700">
-              ${escapeHtml(s.titleEs || s.title)}
-            </a>
-          </div>
-          <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-stone-600">
-            <span>por ${escapeHtml(s.by || 'anónimo')}</span>
-            <span>·</span>
-            <span>${timeAgo(s.time)}</span>
-            <span>·</span>
-            <a href="${escapeHtml(hnLink(s.id))}" target="_blank" rel="noopener" class="text-stone-700 hover:underline">${comments} comentarios</a>
-          </div>
-          ${s.textSnippet ? `<div class="mt-2 text-sm text-stone-700 line-clamp-8">${mdToHtml(s.textSnippet)}</div>` : ''}
-            </div>
-          </div>
-        </article>
-      `;
-    }
-
-    function renderHero(s: Story): string {
-      const url = s.url || hnLink(s.id);
-      const points = (s.score ?? 0).toLocaleString('es-ES');
-      const comments = (s.descendants ?? 0).toLocaleString('es-ES');
-      const heroImg = s.image
-        ? '<img src="' + escapeHtml(s.image) + '" alt="" class="mb-4 h-80 w-full rounded object-cover" loading="lazy" />'
-        : '';
-      return `
-        <article class="overflow-hidden border-b-2 border-stone-900 pb-6">
-          ${heroImg}
-          ${s.rawTitle && s.rawTitle !== (s.titleEs || s.title) ? '<p class="mb-1 text-sm italic text-stone-500">' + escapeHtml(s.rawTitle) + '</p>' : ''}
-          <div class="flex items-start gap-3">
-            <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="text-3xl font-bold leading-tight text-stone-900 hover:text-orange-700">
-              ${escapeHtml(s.titleEs || s.title)}
-            </a>
-          </div>
-          ${s.textSnippet ? '<div class="mt-3 text-base text-stone-700 line-clamp-8">' + mdToHtml(s.textSnippet) + '</div>' : ''}
-          <div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-stone-600">
-            <span>por ${escapeHtml(s.by || 'anonimo')}</span>
-            <span>·</span>
-            <span>${timeAgo(s.time)}</span>
-            <span>·</span>
-            <a href="${escapeHtml(hnLink(s.id))}" target="_blank" rel="noopener" class="text-stone-700 hover:underline">${comments} comentarios</a>
-            <span>·</span>
-            <span class="text-stone-500">${escapeHtml(s.url ? domainOf(s.url) : 'news.ycombinator.com')}</span>
-          </div>
-        </article>
-      `;
-    }
-
-    function renderAll() {
-      if (loadedStories.length === 0) {
-        empty.classList.remove('hidden');
-        return;
-      }
-      empty.classList.add('hidden');
-      heroEl.classList.remove('hidden');
-      heroEl.innerHTML = renderHero(loadedStories[0]);
-      const rest = loadedStories.slice(1);
-      gridEl.innerHTML = rest.map(renderCard).join('');
-    }
-
-    function setLoading(v: boolean) {
-      loading = v;
-      refreshBtn.disabled = v;
-      loadMoreBtn.disabled = v;
-      status.textContent = v ? 'Cargando…' : '';
-    }
-
-    async function loadBatch() {
-      if (loading) return;
-      if (offset >= allIds.length) {
-        loadMoreBtn.classList.add('hidden');
-        return;
-      }
-      setLoading(true);
-      errorBox.classList.add('hidden');
-
-      try {
-        const batchIds = allIds.slice(offset, offset + PAGE_SIZE);
-        const items = await Promise.all(batchIds.map((id) => fetchItem(id)));
-        const stories: Story[] = items
-          .filter((it): it is NonNullable<typeof it> => !!it && !it.deleted && !it.dead)
-          .map((it) => {
-            const rawTitle = it.title || '(sin título)';
-            const title = rawTitle.replace(/^Show HN:\s*/i, '').trim();
-            return {
-              id: it.id,
-              title,
-              rawTitle,
-              titleEs: title,
-              url: it.url,
-              score: it.score,
-              by: it.by,
-              time: it.time,
-              descendants: it.descendants,
-              text: it.text,
-            };
-          });
-
-        // Traducción al vuelo (concurrencia 2)
-        const translated = await mapLimit(stories, 2, async (s, i) => {
-          const titleEs = await toSpanish(s.title);
-          let snippet = s.text ? stripHtml(s.text) : '';
-          let image = '';
-          // Contexto/imagen del enlace para las 10 primeras (caché)
-          if (s.url && offset + i < 10) {
-            const ctx = await fetchContext(s.url);
-            if (!snippet) snippet = ctx.text;
-            image = ctx.image;
-          }
-          // Traducimos descripción en las 10 primeras
-          if (snippet && offset + i < 10) {
-            snippet = await toSpanish(snippet);
-          }
-          console.log('[HN]', s.id, s.title, '->', snippet || '(sin descripción)', image ? '| img: ' + image : '');
-          return { ...s, titleEs, textSnippet: snippet, image };
-        });
-
-        if (offset === 0) {
-          skeletons.classList.add('hidden');
-          loadedStories = [];
-        }
-        loadedStories = loadedStories.concat(translated);
-        renderAll();
-
-        offset += PAGE_SIZE;
-        empty.classList.toggle('hidden', loadedStories.length > 0);
-
-        const hasMore = offset < allIds.length;
-        loadMoreBtn.classList.toggle('hidden', !hasMore);
-      } catch (err) {
-        console.error(err);
-        errorBox.textContent = 'Error al cargar historias. Intenta de nuevo.';
-        errorBox.classList.remove('hidden');
-        skeletons.classList.add('hidden');
-      } finally {
-        setLoading(false);
+    const headerEl = document.querySelector('header') as HTMLElement | null;
+    const headerInner = headerEl?.querySelector(':scope > div') as HTMLElement | null;
+    const headerTitle = headerEl?.querySelector('h1') as HTMLElement | null;
+    const headerTitleWrap = headerEl?.querySelector('.mt-2.border-t') as HTMLElement | null;
+    function updateHeader() {
+      if (!headerInner || !headerTitle) return;
+      const compact = window.scrollY > 60;
+      headerInner.classList.toggle('py-3', !compact);
+      headerInner.classList.toggle('py-1', compact);
+      headerTitle.classList.toggle('text-4xl', !compact);
+      headerTitle.classList.toggle('sm:text-5xl', !compact);
+      headerTitle.classList.toggle('text-2xl', compact);
+      headerTitle.classList.toggle('sm:text-3xl', compact);
+      if (headerTitleWrap) {
+        headerTitleWrap.classList.toggle('mt-2', !compact);
+        headerTitleWrap.classList.toggle('mt-1', compact);
+        headerTitleWrap.classList.toggle('pt-2', !compact);
+        headerTitleWrap.classList.toggle('pt-1', compact);
       }
     }
-
-    async function init() {
-      offset = 0;
-      loadedStories = [];
-      heroEl.innerHTML = '';
-      heroEl.classList.add('hidden');
-      gridEl.innerHTML = '';
-      skeletons.classList.remove('hidden');
-      empty.classList.add('hidden');
-      errorBox.classList.add('hidden');
-      loadMoreBtn.classList.add('hidden');
-
-      try {
-        const [topIds, bestIds] = await Promise.all([
-          fetchFeedIds('top', 40),
-          fetchFeedIds('best', 40),
-        ]);
-        allIds = [...new Set([...topIds, ...bestIds])].slice(0, TOTAL_FETCH);
-        await loadBatch();
-      } catch (err) {
-        console.error(err);
-        skeletons.classList.add('hidden');
-        errorBox.textContent = 'No se pudo conectar con Hacker News.';
-        errorBox.classList.remove('hidden');
-      }
-    }
-
-    refreshBtn.addEventListener('click', () => init());
-    loadMoreBtn.addEventListener('click', loadBatch);
-
-    init();
+    window.addEventListener('scroll', updateHeader, { passive: true });
+    updateHeader();
   </script>
 </Layout>
