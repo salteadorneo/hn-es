@@ -1,6 +1,6 @@
 import { NO_TRANSLATE_UNIQUE } from './dictionary';
 
-const KEY = 'hn-es-cache-v2';
+const KEY = 'hn-es-cache-v3';
 
 function readCache(): Record<string, string> {
   try {
@@ -18,20 +18,34 @@ function writeCache(c: Record<string, string>) {
   }
 }
 
-// Protege las palabras del diccionario sustituyéndolas por marcadores únicos
-// antes de enviar el texto al traductor, para restaurarlas después.
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const PROTECT_RE = new RegExp(
+function isSentenceStart(str: string, offset: number): boolean {
+  let i = offset - 1;
+  while (i >= 0 && /\s/.test(str[i])) i--;
+  if (i < 0) return true;
+  const ch = str[i];
+  return ch === '.' || ch === '!' || ch === '?' || ch === '\n' || ch === '\r';
+}
+
+const DICT_RE = new RegExp(
   NO_TRANSLATE_UNIQUE.map((w) => '\\b' + escapeRegex(w) + '\\b').join('|'),
   'gi',
 );
 
+const CAP_RE = /\b[A-ZÁÉÍÓÚÑÜ][A-Za-zÁÉÍÓÚÑÜáéíóúñü0-9'-]*\b/g;
+
 export function protect(text: string): { text: string; tokens: string[] } {
   const tokens: string[] = [];
-  const out = text.replace(PROTECT_RE, (match) => {
+  let out = text.replace(DICT_RE, (match) => {
+    const idx = tokens.length;
+    tokens.push(match);
+    return `__NT${idx}__`;
+  });
+  out = out.replace(CAP_RE, (match, offset, str) => {
+    if (isSentenceStart(str, offset)) return match;
     const idx = tokens.length;
     tokens.push(match);
     return `__NT${idx}__`;
@@ -55,7 +69,6 @@ export async function toSpanish(text: string): Promise<string> {
   const { text: protectedText, tokens } = protect(text);
   const input = protectedText.length > 2000 ? protectedText.slice(0, 1997) + '…' : protectedText;
 
-  // 1) Google Translate (no key, CORS *)
   try {
     const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=es&dt=t&q=${encodeURIComponent(input)}`;
     const r = await fetch(url);
@@ -73,7 +86,6 @@ export async function toSpanish(text: string): Promise<string> {
     /* fall through */
   }
 
-  // 2) Fallback MyMemory
   try {
     const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(input)}&langpair=en|es`;
     const r = await fetch(url);
