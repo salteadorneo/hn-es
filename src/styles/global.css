@@ -1,1 +1,10 @@
 @import "tailwindcss";
+
+a:not(.hn-title) {
+  color: #ff6600 !important;
+  text-decoration: underline !important;
+}
+
+a:not(.hn-title):hover {
+  color: #cc5500 !important;
+}
