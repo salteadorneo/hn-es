@@ -187,7 +187,7 @@ import Layout from '../layouts/Layout.astro';
             <span>·</span>
             <a href="${escapeHtml(hnLink(s.id))}" target="_blank" rel="noopener" class="text-stone-700 hover:underline">${comments} comentarios</a>
           </div>
-          ${s.textSnippet ? `<div class="mt-2 text-sm text-stone-700">${mdToHtml(s.textSnippet)}</div>` : ''}
+          ${s.textSnippet ? `<div class="mt-2 text-sm text-stone-700 line-clamp-8">${mdToHtml(s.textSnippet)}</div>` : ''}
             </div>
           </div>
         </article>
@@ -210,7 +210,7 @@ import Layout from '../layouts/Layout.astro';
               ${escapeHtml(s.titleEs || s.title)}
             </a>
           </div>
-          ${s.textSnippet ? '<div class="mt-3 text-base text-stone-700">' + mdToHtml(s.textSnippet) + '</div>' : ''}
+          ${s.textSnippet ? '<div class="mt-3 text-base text-stone-700 line-clamp-8">' + mdToHtml(s.textSnippet) + '</div>' : ''}
           <div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-stone-600">
             <span>por ${escapeHtml(s.by || 'anonimo')}</span>
             <span>·</span>
