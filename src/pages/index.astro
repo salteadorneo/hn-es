@@ -153,11 +153,12 @@ import Layout from '../layouts/Layout.astro';
     function renderCard(s: Story): string {
       const url = s.url || hnLink(s.id);
       const comments = (s.descendants ?? 0).toLocaleString('es-ES');
-      const points = (s.score ?? 0).toLocaleString('es-ES');
       const score = s.score ?? 0;
       const titleSize =
-        score >= 500 ? 'text-3xl' :
-        score >= 300 ? 'text-2xl' :
+        score >= 500 ? 'text-4xl' :
+        score >= 400 ? 'text-4xl' :
+        score >= 300 ? 'text-3xl' :
+        score >= 200 ? 'text-2xl' :
         score >= 150 ? 'text-xl' :
         score >= 50 ? 'text-lg' :
         'text-base';
