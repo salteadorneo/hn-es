@@ -8,6 +8,14 @@ astro dev --background
 
 Manage the background server with `astro dev stop`, `astro dev status`, and `astro dev logs`.
 
+After each change, do **not** run `npm run build`. Verify with the check command only:
+
+```
+npm run check
+```
+
+Reserve `npm run build` for when a production build is explicitly requested.
+
 ## Documentation
 
 Full documentation: https://docs.astro.build

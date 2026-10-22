@@ -9,17 +9,24 @@ interface Props {
 const { title = 'Hacker News en Español', description = 'Blog paralelo de Hacker News con traducción al español al vuelo.' } = Astro.props;
 ---
 <!doctype html>
-<html lang="es" class="bg-stone-50 text-stone-900">
+<html lang="es" class="bg-paper text-ink">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" href="/favicon.ico" />
+    <meta name="theme-color" content="#16161e" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&display=swap"
+      rel="stylesheet"
+    />
     <title>{title}</title>
   </head>
-  <body class="min-h-screen bg-stone-50 text-stone-900 antialiased">
+  <body class="min-h-screen bg-paper text-ink antialiased">
     <slot />
   </body>
 </html>

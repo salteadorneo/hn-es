@@ -29,13 +29,10 @@ function isLargeImage(img: StoryImage): boolean {
 
 function titleSize(score: number): string {
   const s = score ?? 0;
-  if (s >= 500) return 'text-4xl';
-  if (s >= 400) return 'text-4xl';
-  if (s >= 300) return 'text-3xl';
-  if (s >= 200) return 'text-2xl';
-  if (s >= 150) return 'text-xl';
-  if (s >= 50) return 'text-lg';
-  return 'text-base';
+  if (s >= 400) return 'text-3xl';
+  if (s >= 250) return 'text-2xl';
+  if (s >= 100) return 'text-xl';
+  return 'text-lg';
 }
 
 function stripHtml(html: string): string {
@@ -76,13 +73,13 @@ function mdToHtml(md: string): string {
   s = s.replace(/https?:\/\/\S+/g, '');
   s = s.replace(/\u0000LINK(\d+)\u0000/g, (_m, i) => {
     const { text, url } = links[Number(i)];
-    return `<a href="${url}" target="_blank" rel="noopener" class="text-stone-700 hover:underline">${text}</a>`;
+    return `<a href="${url}" target="_blank" rel="noopener" class="text-accent hover:underline">${text}</a>`;
   });
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-  s = s.replace(/^### (.+)$/gm, '<h4 class="mt-2 font-serif font-bold text-stone-900">$1</h4>');
-  s = s.replace(/^## (.+)$/gm, '<h3 class="mt-2 font-serif font-bold text-stone-900">$1</h3>');
-  s = s.replace(/^# (.+)$/gm, '<h2 class="mt-2 font-serif font-bold text-stone-900">$1</h2>');
+  s = s.replace(/^### (.+)$/gm, '<h4 class="mt-3 font-serif text-lg font-semibold text-ink">$1</h4>');
+  s = s.replace(/^## (.+)$/gm, '<h3 class="mt-3 font-serif text-xl font-semibold text-ink">$1</h3>');
+  s = s.replace(/^# (.+)$/gm, '<h2 class="mt-3 font-serif text-2xl font-semibold text-ink">$1</h2>');
   const lines = s.split(/\n/);
   const out: string[] = [];
   let inList = false;
@@ -160,111 +157,202 @@ try {
   loadedStories = [];
 }
 
+loadedStories.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
 const hero = loadedStories[0];
 const rest = loadedStories.slice(1);
+const heroHasLargeImage = !!(hero?.images?.length && isLargeImage(hero.images[0]));
 const lastUpdated = new Date().toLocaleString('es-ES', { dateStyle: 'full', timeStyle: 'short' });
 const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 ---
 
 <Layout title="Hacker News en Español">
-  <header class="sticky top-0 z-10 border-b-2 border-stone-400 bg-stone-50/90 backdrop-blur">
-    <div class="mx-auto max-w-6xl px-4 py-3 transition-all duration-200">
-      <div class="flex items-center justify-between gap-3">
-        <div class="text-xs uppercase tracking-widest text-stone-500">{today}</div>
-        <div class="text-xs text-stone-600">Última actualización: {lastUpdated}</div>
+  <header class="site-header sticky top-0 z-30 border-b border-rule bg-paper/85 backdrop-blur-md">
+    <div class="mx-auto max-w-6xl px-4">
+      <div class="header-strip flex items-center justify-between gap-3 border-b border-rule/70 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
+        <span>{today}</span>
+        <span class="hidden items-center gap-2 sm:flex">
+          <span class="inline-block h-1.5 w-1.5 bg-accent" aria-hidden="true"></span>
+          Actualizado {lastUpdated}
+        </span>
       </div>
-      <div class="mt-2 border-t border-stone-300 pt-2 text-center">
-        <h1 class="font-serif text-4xl font-black tracking-tight text-stone-900 sm:text-5xl transition-all duration-200">Hacker News en Español</h1>
+      <div class="header-main flex items-center justify-center gap-3 py-5">
+        <span class="brand-mark" aria-hidden="true">Y</span>
+        <h1 class="nameplate text-balance text-ink">
+          Hacker News <span class="font-light italic">en Español</span>
+        </h1>
       </div>
     </div>
   </header>
 
-  <main class="mx-auto max-w-6xl px-4 py-6">
+  <main class="mx-auto max-w-6xl px-4 py-8">
     {loadedStories.length === 0 && (
-      <div class="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">
+      <div class="border border-red-400/40 bg-red-500/10 p-4 font-mono text-xs text-red-300">
         No se pudo conectar con Hacker News.
       </div>
     )}
 
     {hero && (
-      <section class="mb-6">
-        <article class="overflow-hidden border-b-2 border-stone-900 pb-6">
-          {hero.images && hero.images.length > 0 && isLargeImage(hero.images[0]) && (
-            <img src={hero.images[0].src} alt="" class="mb-4 h-80 w-full rounded object-cover" loading="lazy" />
-          )}
-          {hero.images && hero.images.length > 0 && !isLargeImage(hero.images[0]) && (
-            <img src={hero.images[0].src} alt="" class="mb-4 h-24 w-24 rounded object-cover float-right ml-4" loading="lazy" />
-          )}
-          {hero.images && hero.images.length > 1 && (
-            <div class="mb-4 flex flex-wrap gap-2">
-              {hero.images.slice(1).map((img) => (
-                <img src={img.src} alt="" class="h-20 w-20 rounded object-cover" loading="lazy" />
-              ))}
+      <section class="mb-8">
+        <article class={`grid gap-8 border-b border-rule pb-8 ${heroHasLargeImage ? 'lg:grid-cols-12' : ''}`}>
+          <div class={heroHasLargeImage ? 'lg:col-span-7' : ''}>
+            <div class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[10px] uppercase tracking-[0.18em]">
+              <span class="bg-accent px-2 py-1 font-semibold text-paper">{(hero.score ?? 0).toLocaleString('es-ES')} pts</span>
+              <span class="text-muted">Portada</span>
             </div>
-          )}
-          <div class="flex items-start gap-3">
-            <a href={hero.url || hnLink(hero.id)} target="_blank" rel="noopener" class="text-3xl font-bold leading-tight text-stone-900 hover:text-orange-700 hn-title">
+
+            {hero.images && hero.images.length > 0 && !heroHasLargeImage && (
+              <a
+                href={hero.url || hnLink(hero.id)}
+                target="_blank"
+                rel="noopener"
+                aria-label={hero.titleEs || hero.title}
+                class="float-right mb-4 ml-4"
+              >
+                <img src={hero.images[0].src} alt="" class="h-28 w-28 border border-rule object-cover" loading="lazy" />
+              </a>
+            )}
+
+            <a
+              href={hero.url || hnLink(hero.id)}
+              target="_blank"
+              rel="noopener"
+              class="hn-title block font-serif text-4xl font-semibold leading-[1.03] tracking-[-0.025em] text-ink transition-colors hover:text-accent sm:text-5xl lg:text-[3.4rem]"
+            >
               {hero.titleEs || hero.title}
             </a>
+
+            {hero.textSnippet && (
+              <div class="story-body mt-4 line-clamp-8 text-base leading-relaxed text-soft" set:html={mdToHtml(hero.textSnippet)} />
+            )}
+
+            {hero.images && hero.images.length > 1 && !heroHasLargeImage && (
+              <div class="mt-4 flex flex-wrap gap-2">
+                {hero.images.slice(1, 4).map((img) => (
+                  <a href={hero.url || hnLink(hero.id)} target="_blank" rel="noopener" aria-label={hero.titleEs || hero.title}>
+                    <img src={img.src} alt="" class="h-14 w-14 border border-rule object-cover" loading="lazy" />
+                  </a>
+                ))}
+              </div>
+            )}
+
+            <div class="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-muted">
+              <span>por <span class="text-soft">{hero.by || 'anónimo'}</span></span>
+              <span class="text-rule" aria-hidden="true">/</span>
+              <span>{timeAgo(hero.time)}</span>
+              <span class="text-rule" aria-hidden="true">/</span>
+              <a href={hnLink(hero.id)} target="_blank" rel="noopener" class="text-soft transition-colors hover:text-accent">
+                {(hero.descendants ?? 0).toLocaleString('es-ES')} comentarios
+              </a>
+              {hero.url && (
+                <>
+                  <span class="text-rule" aria-hidden="true">/</span>
+                  <span class="truncate">{domainOf(hero.url)}</span>
+                </>
+              )}
+            </div>
           </div>
-          {hero.textSnippet && (
-            <div class="mt-3 text-base text-stone-700 line-clamp-8" set:html={mdToHtml(hero.textSnippet)} />
+
+          {heroHasLargeImage && (
+            <div class="lg:col-span-5">
+              <a href={hero.url || hnLink(hero.id)} target="_blank" rel="noopener" aria-label={hero.titleEs || hero.title} class="block">
+                <img
+                  src={hero.images![0].src}
+                  alt=""
+                  class="aspect-[4/3] w-full border border-rule object-cover"
+                  loading="lazy"
+                />
+              </a>
+              {hero.images!.length > 1 && (
+                <div class="mt-2 grid grid-cols-3 gap-2">
+                  {hero.images!.slice(1, 4).map((img) => (
+                    <a href={hero.url || hnLink(hero.id)} target="_blank" rel="noopener" aria-label={hero.titleEs || hero.title}>
+                      <img src={img.src} alt="" class="aspect-square w-full border border-rule object-cover" loading="lazy" />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
-          <div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-stone-600">
-            <span>por {hero.by || 'anonimo'}</span>
-            <span>·</span>
-            <span>{timeAgo(hero.time)}</span>
-            <span>·</span>
-            <a href={hnLink(hero.id)} target="_blank" rel="noopener" class="text-stone-700 hover:underline">{(hero.descendants ?? 0).toLocaleString('es-ES')} comentarios</a>
-            <span>·</span>
-            <span class="text-stone-500">{domainOf(hero.url)}</span>
-          </div>
         </article>
       </section>
     )}
 
     {rest.length > 0 && (
       <section>
-        <h2 class="mb-3 text-lg font-semibold text-stone-900">Últimas noticias</h2>
-        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="mb-4 flex items-baseline justify-between gap-4 border-b border-rule pb-2">
+          <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">Lo más votado</span>
+          <span class="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">{loadedStories.length} historias</span>
+        </div>
+
+        <div class="grid gap-px border border-rule bg-rule sm:grid-cols-2 lg:grid-cols-3">
           {rest.map((s) => {
-            const isGithub = /github\.com/i.test(s.url || '');
             const span = (s.score ?? 0) >= 500 ? 'sm:col-span-2' : '';
             return (
-              <article class={`group border-b border-stone-300 py-6 ${span}`}>
+              <article class={`group flex flex-col bg-paper p-5 transition-colors duration-200 hover:bg-surface sm:p-6 ${span}`}>
+                <div class="mb-3 flex items-start justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.16em]">
+                  <span class="shrink-0 text-accent">
+                    {(s.score ?? 0).toLocaleString('es-ES')}<span class="text-muted"> pts</span>
+                  </span>
+                  {s.url && <span class="truncate text-right text-muted">{domainOf(s.url)}</span>}
+                </div>
+
                 {s.images && s.images.length > 0 && isLargeImage(s.images[0]) && (
-                  <img src={s.images[0].src} alt="" class="mb-3 h-44 w-full rounded object-cover" loading="lazy" />
+                  <a
+                    href={s.url || hnLink(s.id)}
+                    target="_blank"
+                    rel="noopener"
+                    aria-label={s.titleEs || s.title}
+                    class="mb-4 block"
+                  >
+                    <img src={s.images[0].src} alt="" class="aspect-[16/9] w-full border border-rule object-cover" loading="lazy" />
+                  </a>
                 )}
+
                 {s.images && s.images.length > 0 && !isLargeImage(s.images[0]) && (
-                  <img src={s.images[0].src} alt="" class="mb-3 h-20 w-20 rounded object-cover float-right ml-3" loading="lazy" />
+                  <a
+                    href={s.url || hnLink(s.id)}
+                    target="_blank"
+                    rel="noopener"
+                    aria-label={s.titleEs || s.title}
+                    class="float-right mb-3 ml-3"
+                  >
+                    <img src={s.images[0].src} alt="" class="h-20 w-20 border border-rule object-cover" loading="lazy" />
+                  </a>
                 )}
+
+                <a
+                  href={s.url || hnLink(s.id)}
+                  target="_blank"
+                  rel="noopener"
+                  class={`hn-title block font-serif ${titleSize(s.score ?? 0)} font-semibold leading-snug tracking-[-0.01em] text-ink transition-colors group-hover:text-accent`}
+                >
+                  {s.titleEs || s.title}
+                </a>
+
+                {s.textSnippet && (
+                  <div class="story-body mt-2 line-clamp-8 text-sm leading-relaxed text-soft" set:html={mdToHtml(s.textSnippet)} />
+                )}
+
                 {s.images && s.images.length > 1 && (
-                  <div class="mb-2 flex flex-wrap gap-1">
+                  <div class="mt-3 flex flex-wrap gap-1.5">
                     {s.images.slice(1, 4).map((img) => (
-                      <img src={img.src} alt="" class="h-12 w-12 rounded object-cover" loading="lazy" />
+                      <a href={s.url || hnLink(s.id)} target="_blank" rel="noopener" aria-label={s.titleEs || s.title}>
+                        <img src={img.src} alt="" class="h-11 w-11 border border-rule object-cover" loading="lazy" />
+                      </a>
                     ))}
                   </div>
                 )}
-                <div class="flex items-start gap-2">
-                  {isGithub && (
-                    <svg class="inline-block h-5 w-5 shrink-0 text-stone-700" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                      <path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.69-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.53-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.7 5.39-5.27 5.67.41.36.78 1.06.78 2.14 0 1.55-.01 2.8-.01 3.18 0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5z" />
-                    </svg>
-                  )}
-                  <a href={s.url || hnLink(s.id)} target="_blank" rel="noopener" class={`block ${titleSize(s.score ?? 0)} font-serif font-bold leading-tight text-stone-900 hover:text-orange-700 hn-title`}>
-                    {s.titleEs || s.title}
+
+                <div class="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-4 font-mono text-[10px] text-muted">
+                  <span class="text-soft">{s.by || 'anónimo'}</span>
+                  <span class="text-rule" aria-hidden="true">/</span>
+                  <span>{timeAgo(s.time)}</span>
+                  <span class="text-rule" aria-hidden="true">/</span>
+                  <a href={hnLink(s.id)} target="_blank" rel="noopener" class="text-soft transition-colors hover:text-accent">
+                    {(s.descendants ?? 0).toLocaleString('es-ES')} com.
                   </a>
                 </div>
-                <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-stone-600">
-                  <span>por {s.by || 'anónimo'}</span>
-                  <span>·</span>
-                  <span>{timeAgo(s.time)}</span>
-                  <span>·</span>
-                  <a href={hnLink(s.id)} target="_blank" rel="noopener" class="text-stone-700 hover:underline">{(s.descendants ?? 0).toLocaleString('es-ES')} comentarios</a>
-                </div>
-                {s.textSnippet && (
-                  <div class="mt-2 text-sm text-stone-700 line-clamp-8" set:html={mdToHtml(s.textSnippet)} />
-                )}
               </article>
             );
           })}
@@ -272,33 +360,34 @@ const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'nu
       </section>
     )}
 
-    <footer class="mt-10 border-t border-stone-300 pt-4 text-center text-xs text-stone-500">
-      Datos de <a class="text-stone-700 hover:underline" href="https://news.ycombinator.com" target="_blank" rel="noopener">Hacker News</a>
-      · Traducción por <a class="text-stone-700 hover:underline" href="https://mymemory.translated.net" target="_blank" rel="noopener">MyMemory</a>
-      · Contexto por <a class="text-stone-700 hover:underline" href="https://r.jina.ai" target="_blank" rel="noopener">Jina Reader</a>
+    <footer class="mt-12 border-t-2 border-ink/60 pt-5 pb-6">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <a
+          class="inline-flex items-center gap-2 font-mono text-[11px] text-soft transition-colors hover:text-accent"
+          href="https://github.com/salteadorneo/hn-es"
+          target="_blank"
+          rel="noopener"
+          aria-label="Repositorio de hn-es en GitHub"
+        >
+          <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.69-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.53-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.7 5.39-5.27 5.67.41.36.78 1.06.78 2.14 0 1.55-.01 2.8-.01 3.18 0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5z" />
+          </svg>
+          <span>salteadorneo/hn-es</span>
+        </a>
+        <p class="font-mono text-[10px] leading-relaxed tracking-wide text-muted">
+          Datos de <a class="text-soft transition-colors hover:text-accent" href="https://news.ycombinator.com" target="_blank" rel="noopener">Hacker News</a>
+          · Traducción <a class="text-soft transition-colors hover:text-accent" href="https://mymemory.translated.net" target="_blank" rel="noopener">MyMemory</a>
+          · Contexto <a class="text-soft transition-colors hover:text-accent" href="https://r.jina.ai" target="_blank" rel="noopener">Jina Reader</a>
+        </p>
+      </div>
     </footer>
   </main>
 
   <script>
-    const headerEl = document.querySelector('header') as HTMLElement | null;
-    const headerInner = headerEl?.querySelector(':scope > div') as HTMLElement | null;
-    const headerTitle = headerEl?.querySelector('h1') as HTMLElement | null;
-    const headerTitleWrap = headerEl?.querySelector('.mt-2.border-t') as HTMLElement | null;
+    const headerEl = document.querySelector('.site-header') as HTMLElement | null;
     function updateHeader() {
-      if (!headerInner || !headerTitle) return;
-      const compact = window.scrollY > 60;
-      headerInner.classList.toggle('py-3', !compact);
-      headerInner.classList.toggle('py-1', compact);
-      headerTitle.classList.toggle('text-4xl', !compact);
-      headerTitle.classList.toggle('sm:text-5xl', !compact);
-      headerTitle.classList.toggle('text-2xl', compact);
-      headerTitle.classList.toggle('sm:text-3xl', compact);
-      if (headerTitleWrap) {
-        headerTitleWrap.classList.toggle('mt-2', !compact);
-        headerTitleWrap.classList.toggle('mt-1', compact);
-        headerTitleWrap.classList.toggle('pt-2', !compact);
-        headerTitleWrap.classList.toggle('pt-1', compact);
-      }
+      if (!headerEl) return;
+      headerEl.classList.toggle('is-compact', window.scrollY > 64);
     }
     window.addEventListener('scroll', updateHeader, { passive: true });
     updateHeader();

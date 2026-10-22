@@ -1,10 +1,110 @@
 @import "tailwindcss";
 
-a:not(.hn-title) {
-  color: #ff6600 !important;
-  text-decoration: underline !important;
+@theme {
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --color-paper: #16161e;
+  --color-surface: #1a1b26;
+  --color-ink: #c0caf5;
+  --color-soft: #a9b1d6;
+  --color-muted: #7b85b0;
+  --color-rule: #292e42;
+  --color-accent: #ff9e64;
+  --color-accent-soft: #ffb98a;
 }
 
-a:not(.hn-title):hover {
-  color: #cc5500 !important;
+@layer base {
+  html {
+    background-color: var(--color-paper);
+  }
+
+  body {
+    background-color: var(--color-paper);
+    background-image:
+      linear-gradient(to right, color-mix(in oklab, var(--color-ink) 4%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklab, var(--color-ink) 4%, transparent) 1px, transparent 1px);
+    background-size: 28px 28px;
+    background-attachment: fixed;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-paper);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+  }
+
+  a {
+    color: inherit;
+  }
+}
+
+.site-header {
+  transition: background-color 200ms ease;
+}
+
+.header-main {
+  transition: padding 200ms ease;
+}
+
+.brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  background: var(--color-accent);
+  color: var(--color-paper);
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+  transition:
+    width 200ms ease,
+    height 200ms ease,
+    font-size 200ms ease;
+}
+
+.nameplate {
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 5.8vw, 3.6rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  transition: font-size 200ms ease;
+}
+
+.site-header.is-compact .header-strip {
+  display: none;
+}
+
+.site-header.is-compact .header-main {
+  padding-block: 0.55rem;
+}
+
+.site-header.is-compact .brand-mark {
+  width: 1.7rem;
+  height: 1.7rem;
+  font-size: 0.85rem;
+}
+
+.site-header.is-compact .nameplate {
+  font-size: clamp(1.5rem, 3.6vw, 2.1rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-header,
+  .header-main,
+  .brand-mark,
+  .nameplate {
+    transition: none;
+  }
 }
