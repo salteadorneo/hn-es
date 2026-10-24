@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import SiteNav from '../components/SiteNav.astro';
 import { fetchFeedIds, fetchItem, domainOf, timeAgo, hnLink, fetchContext, fetchPageImages } from '../scripts/hn';
 import type { ContextImage } from '../scripts/hn';
 import { toSpanish, mapLimit, OPENROUTER_ENABLED } from '../scripts/translate';
@@ -91,6 +92,7 @@ const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'nu
           Show HN <span class="font-light italic">en Español</span>
         </h1>
       </div>
+      <SiteNav />
     </div>
   </header>
 

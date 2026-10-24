@@ -1,0 +1,30 @@
+---
+import { withBase } from '../lib/url';
+
+const items = [
+  { href: withBase(), label: 'Portada' },
+  { href: withBase('show'), label: 'Show HN' },
+  { href: withBase('products'), label: 'Productos' },
+];
+
+const current = Astro.url.pathname.replace(/\/+$/, '') || '/';
+---
+
+<nav aria-label="Secciones" class="flex items-center justify-center gap-1 pb-4 font-mono text-[10px] uppercase tracking-[0.22em]">
+  {items.map((item) => {
+    const path = item.href.replace(/\/+$/, '') || '/';
+    const active = current === path;
+    return (
+      <a
+        href={item.href}
+        aria-current={active ? 'page' : undefined}
+        class:list={[
+          'px-3 py-1 transition-colors',
+          active ? 'bg-accent text-paper' : 'text-muted hover:text-ink',
+        ]}
+      >
+        {item.label}
+      </a>
+    );
+  })}
+</nav>

@@ -82,7 +82,8 @@
   transition: font-size 200ms ease;
 }
 
-.site-header.is-compact .header-strip {
+.site-header.is-compact .header-strip,
+.site-header.is-compact nav {
   display: none;
 }
 

@@ -1,0 +1,264 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SiteNav from '../components/SiteNav.astro';
+import { fetchIndieHackers } from '../scripts/indiehackers';
+import type { IHBoardItem, IHProduct } from '../scripts/indiehackers';
+import { toSpanish, mapLimit } from '../scripts/translate';
+import { domainOf } from '../scripts/hn';
+
+function money(n: number): string {
+  if (!n) return '—';
+  return `${n.toLocaleString('es-ES')} $/mes`;
+}
+
+function revenueSize(n: number): string {
+  if (n >= 200_000) return 'text-2xl';
+  if (n >= 50_000) return 'text-xl';
+  return 'text-lg';
+}
+
+let products: (IHProduct & { taglineEs: string })[] = [];
+let board: (IHBoardItem & { updateEs: string })[] = [];
+let failed = false;
+
+try {
+  const data = await fetchIndieHackers();
+  const featured = data.products.slice(0, 24);
+  const rest = data.products.slice(24);
+  const translated = await mapLimit(featured, 4, async (product) => ({
+    ...product,
+    taglineEs: product.tagline ? await toSpanish(product.tagline) : '',
+  }));
+  products = [
+    ...translated,
+    ...rest.map((product) => ({ ...product, taglineEs: product.tagline })),
+  ];
+  board = await mapLimit(data.board, 4, async (item) => ({
+    ...item,
+    updateEs: item.update ? await toSpanish(item.update) : '',
+  }));
+} catch (err) {
+  console.error(err);
+  failed = true;
+}
+
+const hero = products[0];
+const grid = products.slice(1, 24);
+const ledger = products.slice(24);
+const lastUpdated = new Date().toLocaleString('es-ES', { dateStyle: 'full', timeStyle: 'short' });
+const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+---
+
+<Layout title="Productos de Indie Hackers | Hacker News en Español" description="Directorio público de productos de Indie Hackers: lanzamientos del día e ingresos verificados por Stripe.">
+  <header class="site-header sticky top-0 z-30 border-b border-rule bg-paper/85 backdrop-blur-md">
+    <div class="mx-auto max-w-6xl px-4">
+      <div class="header-strip flex items-center justify-between gap-3 border-b border-rule/70 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
+        <span>{today}</span>
+        <span class="hidden items-center gap-2 sm:flex">
+          <span class="inline-block h-1.5 w-1.5 bg-accent" aria-hidden="true"></span>
+          Actualizado {lastUpdated}
+        </span>
+      </div>
+      <div class="header-main flex items-center justify-center gap-3 py-5">
+        <span class="brand-mark" aria-hidden="true">Y</span>
+        <h1 class="nameplate text-balance text-ink">
+          Indie Hackers <span class="font-light italic">en Español</span>
+        </h1>
+      </div>
+      <SiteNav />
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-4 py-8">
+    {failed && (
+      <div class="border border-red-400/40 bg-red-500/10 p-4 font-mono text-xs text-red-300">
+        No se pudo leer el directorio de Indie Hackers.
+      </div>
+    )}
+
+    {!failed && products.length === 0 && board.length === 0 && (
+      <div class="border border-red-400/40 bg-red-500/10 p-4 font-mono text-xs text-red-300">
+        Indie Hackers no devolvió productos.
+      </div>
+    )}
+
+    {hero && (
+      <section class="mb-8">
+        <article class="grid gap-8 border-b border-rule pb-8 lg:grid-cols-12">
+          <div class="lg:col-span-8">
+            <div class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[10px] uppercase tracking-[0.18em]">
+              <span class="bg-accent px-2 py-1 font-semibold text-paper">{money(hero.revenue)}</span>
+              <span class="text-muted">Stripe · verificado</span>
+              {hero.categories.slice(0, 2).map((category) => (
+                <span class="text-soft">{category}</span>
+              ))}
+            </div>
+            <a
+              href={hero.website || hero.ihUrl}
+              target="_blank"
+              rel="noopener"
+              class="block font-serif text-4xl font-semibold leading-[1.03] tracking-[-0.025em] text-ink transition-colors hover:text-accent sm:text-5xl lg:text-[3.4rem]"
+            >
+              {hero.name}
+            </a>
+            {hero.taglineEs && (
+              <p class="mt-4 max-w-2xl text-base leading-relaxed text-soft">{hero.taglineEs}</p>
+            )}
+            <div class="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-muted">
+              <a href={hero.ihUrl} target="_blank" rel="noopener" class="text-soft transition-colors hover:text-accent">Ficha en Indie Hackers</a>
+              {hero.website && (
+                <>
+                  <span class="text-rule" aria-hidden="true">/</span>
+                  <a href={hero.website} target="_blank" rel="noopener" class="truncate text-soft transition-colors hover:text-accent">{domainOf(hero.website)}</a>
+                </>
+              )}
+            </div>
+          </div>
+          {hero.avatar && (
+            <div class="lg:col-span-4">
+              <a href={hero.website || hero.ihUrl} target="_blank" rel="noopener" class="block">
+                <img src={hero.avatar} alt="" class="aspect-square w-full border border-rule bg-surface object-cover" />
+              </a>
+            </div>
+          )}
+        </article>
+      </section>
+    )}
+
+    {board.length > 0 && (
+      <section class="mb-10">
+        <div class="mb-4 flex items-baseline justify-between gap-4 border-b border-rule pb-2">
+          <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">El tablero de hoy</span>
+          <span class="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">{board.length} lanzamientos</span>
+        </div>
+        <ol class="divide-y divide-rule border border-rule">
+          {board.map((item) => (
+            <li class="grid grid-cols-[auto_1fr_auto] items-start gap-4 bg-paper px-4 py-4 sm:px-5">
+              <span class="pt-1 font-mono text-xs text-accent">{String(item.rank).padStart(2, '0')}</span>
+              <div class="min-w-0">
+                <div class="flex items-start gap-3">
+                  {item.avatar && (
+                    <img src={item.avatar} alt="" class="mt-0.5 h-10 w-10 shrink-0 border border-rule object-cover" loading="lazy" />
+                  )}
+                  <div class="min-w-0">
+                    <a href={item.website || item.ihUrl} target="_blank" rel="noopener" class="font-serif text-xl font-semibold leading-snug text-ink transition-colors hover:text-accent">
+                      {item.name}
+                    </a>
+                    {item.tagline && <p class="mt-0.5 text-sm text-soft">{item.tagline}</p>}
+                    {item.updateEs && (
+                      <a href={item.ihUrl} target="_blank" rel="noopener" class="mt-2 block text-sm leading-relaxed text-muted transition-colors hover:text-ink">
+                        {item.updateEs}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <span class="pt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-accent">{item.votes} votos</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+    )}
+
+    {grid.length > 0 && (
+      <section class="mb-10">
+        <div class="mb-4 flex items-baseline justify-between gap-4 border-b border-rule pb-2">
+          <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">Ingresos verificados</span>
+          <span class="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">{products.length} productos públicos</span>
+        </div>
+        <div class="grid gap-px border border-rule bg-rule sm:grid-cols-2 lg:grid-cols-3">
+          {grid.map((product) => (
+            <article class="group flex flex-col bg-paper p-5 transition-colors duration-200 hover:bg-surface sm:p-6">
+              <div class="mb-3 flex items-start justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.16em]">
+                <span class={`shrink-0 font-serif font-semibold normal-case tracking-normal text-accent ${revenueSize(product.revenue)}`}>
+                  {money(product.revenue)}
+                </span>
+                {product.website && <span class="truncate text-right text-muted">{domainOf(product.website)}</span>}
+              </div>
+              <div class="flex items-start gap-3">
+                {product.avatar && (
+                  <a href={product.website || product.ihUrl} target="_blank" rel="noopener" class="shrink-0">
+                    <img src={product.avatar} alt="" class="h-14 w-14 border border-rule object-cover" loading="lazy" />
+                  </a>
+                )}
+                <div class="min-w-0">
+                  <a href={product.website || product.ihUrl} target="_blank" rel="noopener" class="block font-serif text-xl font-semibold leading-snug text-ink transition-colors group-hover:text-accent">
+                    {product.name}
+                  </a>
+                  {product.taglineEs && <p class="mt-1 line-clamp-3 text-sm leading-relaxed text-soft">{product.taglineEs}</p>}
+                </div>
+              </div>
+              <div class="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-4 font-mono text-[10px] text-muted">
+                <span class="text-soft">Stripe</span>
+                {product.categories.slice(0, 2).map((category) => (
+                  <>
+                    <span class="text-rule" aria-hidden="true">/</span>
+                    <span>{category}</span>
+                  </>
+                ))}
+                <span class="text-rule" aria-hidden="true">/</span>
+                <a href={product.ihUrl} target="_blank" rel="noopener" class="text-soft transition-colors hover:text-accent">ficha</a>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    )}
+
+    {ledger.length > 0 && (
+      <section>
+        <div class="mb-4 flex items-baseline justify-between gap-4 border-b border-rule pb-2">
+          <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">Resto del directorio</span>
+          <span class="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">{ledger.length} más</span>
+        </div>
+        <div class="divide-y divide-rule border border-rule">
+          {ledger.map((product) => (
+            <a href={product.ihUrl} target="_blank" rel="noopener" class="grid grid-cols-[auto_1fr_auto] items-center gap-4 bg-paper px-4 py-3 transition-colors hover:bg-surface sm:px-5">
+              {product.avatar ? (
+                <img src={product.avatar} alt="" class="h-8 w-8 border border-rule object-cover" loading="lazy" />
+              ) : (
+                <span class="h-8 w-8 border border-rule"></span>
+              )}
+              <span class="min-w-0">
+                <span class="block truncate font-serif text-lg font-semibold text-ink">{product.name}</span>
+                {product.tagline && <span class="block truncate text-sm text-muted">{product.tagline}</span>}
+              </span>
+              <span class="shrink-0 font-mono text-[11px] text-accent">{money(product.revenue)}</span>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+
+    <footer class="mt-12 border-t-2 border-ink/60 pt-5 pb-6">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <a
+          class="inline-flex items-center gap-2 font-mono text-[11px] text-soft transition-colors hover:text-accent"
+          href="https://github.com/salteadorneo/hn-es"
+          target="_blank"
+          rel="noopener"
+          aria-label="Repositorio de hn-es en GitHub"
+        >
+          <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.69-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.53-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.7 5.39-5.27 5.67.41.36.78 1.06.78 2.14 0 1.55-.01 2.8-.01 3.18 0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5z" />
+          </svg>
+          <span>salteadorneo/hn-es</span>
+        </a>
+        <p class="max-w-xl font-mono text-[10px] leading-relaxed tracking-wide text-muted sm:text-right">
+          Datos públicos de <a class="text-soft transition-colors hover:text-accent" href="https://www.indiehackers.com/products" target="_blank" rel="noopener">Indie Hackers</a>.
+          No hay API abierta: el listado completo pide cuenta, así que esto junta las páginas públicas con ingresos verificados por Stripe.
+        </p>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    const headerEl = document.querySelector('.site-header') as HTMLElement | null;
+    function updateHeader() {
+      if (!headerEl) return;
+      headerEl.classList.toggle('is-compact', window.scrollY > 64);
+    }
+    window.addEventListener('scroll', updateHeader, { passive: true });
+    updateHeader();
+  </script>
+</Layout>
