@@ -1,0 +1,91 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { fetchIndieHackers } from '../scripts/indiehackers';
+import type { IHBoardItem } from '../scripts/indiehackers';
+import { toSpanish, mapLimit } from '../scripts/translate';
+
+let board: (IHBoardItem & { updateEs: string })[] = [];
+let failed = false;
+
+try {
+  const data = await fetchIndieHackers();
+  board = await mapLimit(data.board, 4, async (item) => ({
+    ...item,
+    updateEs: item.update ? await toSpanish(item.update) : '',
+  }));
+} catch (err) {
+  console.error(err);
+  failed = true;
+}
+---
+
+<Layout title="The Build Board | Productos de Indie Hackers | Hacker News en Español" description="The Build Board de Indie Hackers: lanzamientos votados hoy.">
+  <main class="mx-auto max-w-6xl px-4 py-8">
+    {failed && (
+      <div class="border border-red-400/40 bg-red-500/10 p-4 font-mono text-xs text-red-300">
+        No se pudo leer el directorio de Indie Hackers.
+      </div>
+    )}
+
+    {!failed && board.length === 0 && (
+      <div class="border border-red-400/40 bg-red-500/10 p-4 font-mono text-xs text-red-300">
+        Indie Hackers no devolvió lanzamientos.
+      </div>
+    )}
+
+    {board.length > 0 && (
+      <section>
+        <div class="mb-4 flex items-baseline justify-between gap-4 border-b border-rule pb-2">
+          <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">The Build Board</span>
+          <span class="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">{board.length} lanzamientos</span>
+        </div>
+        <ol class="divide-y divide-rule border border-rule">
+          {board.map((item) => (
+            <li class="grid grid-cols-[auto_1fr_auto] items-start gap-4 bg-paper px-4 py-4 sm:px-5">
+              <span class="pt-1 font-mono text-xs text-accent">{String(item.rank).padStart(2, '0')}</span>
+              <div class="min-w-0">
+                <div class="flex items-start gap-3">
+                  {item.avatar && (
+                    <img src={item.avatar} alt="" class="mt-0.5 h-10 w-10 shrink-0 border border-rule object-cover" loading="lazy" />
+                  )}
+                  <div class="min-w-0">
+                    <a href={item.website || item.ihUrl} target="_blank" rel="noopener" class="font-serif text-xl font-semibold leading-snug text-ink transition-colors hover:text-accent">
+                      {item.name}
+                    </a>
+                    {item.tagline && <p class="mt-0.5 text-sm text-soft">{item.tagline}</p>}
+                    {item.updateEs && (
+                      <a href={item.ihUrl} target="_blank" rel="noopener" class="mt-2 block text-sm leading-relaxed text-muted transition-colors hover:text-ink">
+                        {item.updateEs}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <span class="pt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-accent">{item.votes} votos</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+    )}
+
+    <footer class="mt-12 border-t-2 border-ink/60 pt-5 pb-6">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <a
+          class="inline-flex items-center gap-2 font-mono text-[11px] text-soft transition-colors hover:text-accent"
+          href="https://github.com/salteadorneo/hn-es"
+          target="_blank"
+          rel="noopener"
+          aria-label="Repositorio de hn-es en GitHub"
+        >
+          <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.69-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.53-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.7 5.39-5.27 5.67.41.36.78 1.06.78 2.14 0 1.55-.01 2.8-.01 3.18 0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5z" />
+          </svg>
+          <span>salteadorneo/hn-es</span>
+        </a>
+        <p class="max-w-xl font-mono text-[10px] leading-relaxed tracking-wide text-muted sm:text-right">
+          Datos públicos de <a class="text-soft transition-colors hover:text-accent" href="https://www.indiehackers.com/products" target="_blank" rel="noopener">Indie Hackers</a>.
+        </p>
+      </div>
+    </footer>
+  </main>
+</Layout>

@@ -1,165 +1,21 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { fetchIndieHackers } from '../scripts/indiehackers';
-import type { IHBoardItem, IHProduct } from '../scripts/indiehackers';
-import { toSpanish, mapLimit } from '../scripts/translate';
-import { withBase } from '../lib/url';
-
-
-function money(n: number): string {
-  if (!n) return '—';
-  return `${n.toLocaleString('es-ES')} $/mes`;
-}
-
-let products: (IHProduct & { taglineEs: string })[] = [];
-let board: (IHBoardItem & { updateEs: string })[] = [];
-let failed = false;
-
-const businessModels = [
-  { value: 'all', label: 'Todos' },
-  { value: 'Gratis', label: 'Gratis' },
-  { value: 'Anuncios', label: 'Anuncios' },
-  { value: 'Comisión', label: 'Comisión' },
-  { value: 'Transacciones', label: 'Transacciones' },
-  { value: 'Suscripción', label: 'Suscripción' },
-];
-
-const url = new URL(Astro.request.url);
-const selectedModel = url.searchParams.get('businessModel') || 'all';
-
-try {
-  const data = await fetchIndieHackers();
-  const translated = await mapLimit(data.products, 4, async (product) => ({
-    ...product,
-    taglineEs: product.tagline ? await toSpanish(product.tagline) : '',
-  }));
-  products = selectedModel === 'all'
-    ? translated
-    : translated.filter((product) => product.categories.includes(selectedModel));
-  board = await mapLimit(data.board, 4, async (item) => ({
-    ...item,
-    updateEs: item.update ? await toSpanish(item.update) : '',
-  }));
-} catch (err) {
-  console.error(err);
-  failed = true;
-}
 ---
 
-<Layout title="Productos de Indie Hackers | Hacker News en Español" description="Directorio público de productos de Indie Hackers: lanzamientos del día e ingresos verificados por Stripe.">
+<Layout title="Productos de Indie Hackers | Hacker News en Español" description="Productos de Indie Hackers: Build Board y Products Database.">
   <main class="mx-auto max-w-6xl px-4 py-8">
-    {failed && (
-      <div class="border border-red-400/40 bg-red-500/10 p-4 font-mono text-xs text-red-300">
-        No se pudo leer el directorio de Indie Hackers.
-      </div>
-    )}
-
-    {!failed && products.length === 0 && board.length === 0 && (
-      <div class="border border-red-400/40 bg-red-500/10 p-4 font-mono text-xs text-red-300">
-        Indie Hackers no devolvió productos.
-      </div>
-    )}
-
-    {board.length > 0 && (
-      <section class="mb-10">
-        <div class="mb-4 flex items-baseline justify-between gap-4 border-b border-rule pb-2">
-          <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">The Build Board</span>
-          <span class="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">{board.length} lanzamientos</span>
-        </div>
-        <ol class="divide-y divide-rule border border-rule">
-          {board.map((item) => (
-            <li class="grid grid-cols-[auto_1fr_auto] items-start gap-4 bg-paper px-4 py-4 sm:px-5">
-              <span class="pt-1 font-mono text-xs text-accent">{String(item.rank).padStart(2, '0')}</span>
-              <div class="min-w-0">
-                <div class="flex items-start gap-3">
-                  {item.avatar && (
-                    <img src={item.avatar} alt="" class="mt-0.5 h-10 w-10 shrink-0 border border-rule object-cover" loading="lazy" />
-                  )}
-                  <div class="min-w-0">
-                    <a href={item.website || item.ihUrl} target="_blank" rel="noopener" class="font-serif text-xl font-semibold leading-snug text-ink transition-colors hover:text-accent">
-                      {item.name}
-                    </a>
-                    {item.tagline && <p class="mt-0.5 text-sm text-soft">{item.tagline}</p>}
-                    {item.updateEs && (
-                      <a href={item.ihUrl} target="_blank" rel="noopener" class="mt-2 block text-sm leading-relaxed text-muted transition-colors hover:text-ink">
-                        {item.updateEs}
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <span class="pt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-accent">{item.votes} votos</span>
-            </li>
-          ))}
-        </ol>
-      </section>
-    )}
-
-    {(products.length > 0 || selectedModel !== 'all') && (
-      <section>
-        <div class="mb-4 flex flex-wrap items-center justify-between gap-4 border-b border-rule pb-2">
-          <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">Products Database</span>
-          <div class="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em]">
-            {businessModels.map((model) => {
-              const href = model.value === 'all'
-                ? withBase('products')
-                : withBase(`products?businessModel=${encodeURIComponent(model.value)}`);
-              const active = selectedModel === model.value;
-              return (
-                <a
-                  href={href}
-                  class={`border px-2 py-1 transition-colors ${active ? 'border-accent bg-accent/10 text-accent' : 'border-rule text-muted hover:text-soft'}`}
-                >
-                  {model.label}
-                </a>
-              );
-            })}
-          </div>
-          <span class="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">{products.length} productos públicos</span>
-        </div>
-        {products.length === 0 && (
-          <div class="border border-rule p-4 font-mono text-xs text-muted">No hay productos con este modelo de negocio.</div>
-        )}
-        {products.length > 0 && (
-        <div class="divide-y divide-rule border border-rule">
-          {products.map((product) => (
-            <article class="grid grid-cols-[auto_1fr_auto] items-center gap-4 bg-paper px-4 py-3 transition-colors hover:bg-surface sm:px-5">
-              {product.avatar ? (
-                <a href={product.website || product.ihUrl} target="_blank" rel="noopener" class="shrink-0">
-                  <img src={product.avatar} alt="" class="h-10 w-10 border border-rule object-cover" loading="lazy" />
-                </a>
-              ) : (
-                <span class="h-10 w-10 border border-rule"></span>
-              )}
-              <div class="min-w-0">
-                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <a href={product.website || product.ihUrl} target="_blank" rel="noopener" class="block truncate font-serif text-lg font-semibold text-ink transition-colors hover:text-accent">
-                    {product.name}
-                  </a>
-                  {product.categories.length > 0 && (
-                    <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-[9px] uppercase tracking-[0.14em] text-muted">
-                      {product.categories.slice(0, 3).map((category) => (
-                        <span class="border border-rule px-1.5 py-0.5">{category}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {product.taglineEs ? (
-                  <p class="mt-0.5 truncate text-sm text-soft">{product.taglineEs}</p>
-                ) : product.tagline ? (
-                  <p class="mt-0.5 truncate text-sm text-muted">{product.tagline}</p>
-                ) : null}
-              </div>
-              <div class="flex items-center gap-3 text-right">
-                <span class="shrink-0 font-mono text-[11px] text-accent">{money(product.revenue)}</span>
-                <a href={product.ihUrl} target="_blank" rel="noopener" class="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-accent sm:inline">ficha</a>
-              </div>
-            </article>
-          ))}
-        </div>
-        )}
-      </section>
-    )}
+    <section class="grid gap-px border border-rule bg-rule sm:grid-cols-2">
+      <a href="/build-board" class="group flex flex-col gap-2 bg-paper p-6 transition-colors hover:bg-surface sm:p-8">
+        <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">The Build Board</span>
+        <span class="font-serif text-2xl font-semibold text-ink transition-colors group-hover:text-accent sm:text-3xl">Lanzamientos votados</span>
+        <span class="text-sm text-soft">Productos en votación del día</span>
+      </a>
+      <a href="/products-database" class="group flex flex-col gap-2 bg-paper p-6 transition-colors hover:bg-surface sm:p-8">
+        <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">Products Database</span>
+        <span class="font-serif text-2xl font-semibold text-ink transition-colors group-hover:text-accent sm:text-3xl">Base de datos</span>
+        <span class="text-sm text-soft">Productos con ingresos verificados por Stripe</span>
+      </a>
+    </section>
 
     <footer class="mt-12 border-t-2 border-ink/60 pt-5 pb-6">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -177,7 +33,6 @@ try {
         </a>
         <p class="max-w-xl font-mono text-[10px] leading-relaxed tracking-wide text-muted sm:text-right">
           Datos públicos de <a class="text-soft transition-colors hover:text-accent" href="https://www.indiehackers.com/products" target="_blank" rel="noopener">Indie Hackers</a>.
-          No hay API abierta: el listado completo pide cuenta, así que esto junta las páginas públicas con ingresos verificados por Stripe.
         </p>
       </div>
     </footer>

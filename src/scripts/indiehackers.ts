@@ -6,14 +6,16 @@ const CACHE_VERSION = 1;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 /** No hay API pública: Firebase responde 401 y el HTML actual no expone Algolia. */
-const SOURCES: { path: string; category?: string }[] = [
+
+
+const SOURCES: { path: string; category?: string; businessModel?: string }[] = [
   { path: '/products' },
   { path: '/products?board=15' },
-  { path: '/products?businessModel=free', category: 'Gratis' },
-  { path: '/products?businessModel=ads', category: 'Anuncios' },
-  { path: '/products?businessModel=commission', category: 'Comisión' },
-  { path: '/products?businessModel=transactions', category: 'Transacciones' },
-  { path: '/products?businessModel=subscriptions', category: 'Suscripción' },
+  { path: '/products?businessModel=free', category: 'Gratis', businessModel: 'free' },
+  { path: '/products?businessModel=ads', category: 'Anuncios', businessModel: 'ads' },
+  { path: '/products?businessModel=commission', category: 'Comisión', businessModel: 'commission' },
+  { path: '/products?businessModel=transactions', category: 'Transacciones', businessModel: 'transactions' },
+  { path: '/products?businessModel=subscriptions', category: 'Suscripción', businessModel: 'subscriptions' },
   { path: '/products?category=ai', category: 'IA' },
   { path: '/products?category=programming', category: 'Programación' },
   { path: '/products?category=marketing', category: 'Marketing' },
@@ -34,6 +36,7 @@ export interface IHProduct {
   website?: string;
   ihUrl: string;
   categories: string[];
+  businessModels?: string[];
 }
 
 export interface IHBoardItem {
@@ -121,7 +124,7 @@ function parseMoney(html: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function parseCards(html: string, category?: string): IHProduct[] {
+function parseCards(html: string, category?: string, businessModel?: string): IHProduct[] {
   const start = html.indexOf('id="products-grid"');
   if (start < 0) return [];
   let end = html.length;
@@ -147,6 +150,8 @@ function parseCards(html: string, category?: string): IHProduct[] {
     if (selfReported && !verified) continue;
     if (!verified) continue;
     const avatar = attr(chunk, /<img[^>]+src="(https?:\/\/[^"]+)"/);
+    const categories = category ? [category] : [];
+    const businessModels = businessModel ? [businessModel] : [];
     out.push({
       slug,
       name,
@@ -155,7 +160,8 @@ function parseCards(html: string, category?: string): IHProduct[] {
       verified: true,
       avatar: avatar || undefined,
       ihUrl: absIh(`/product/${slug}`),
-      categories: category ? [category] : [],
+      categories,
+      businessModels,
     });
   }
   return out;
@@ -245,10 +251,15 @@ function mergeDirectory(pages: { products: IHProduct[]; board: IHBoardItem[] }[]
     for (const product of page.products) {
       const prev = products.get(product.slug);
       if (!prev) {
-        products.set(product.slug, { ...product, categories: [...product.categories] });
+        products.set(product.slug, {
+          ...product,
+          categories: [...(product.categories || [])],
+          businessModels: [...(product.businessModels || [])],
+        });
         continue;
       }
-      const categories = [...new Set([...prev.categories, ...product.categories])];
+      const categories = [...new Set([...(prev.categories || []), ...(product.categories || [])])];
+      const businessModels = [...new Set([...(prev.businessModels || []), ...(product.businessModels || [])])];
       const richer = product.revenue > prev.revenue ? product : prev;
       products.set(product.slug, {
         ...richer,
@@ -256,6 +267,7 @@ function mergeDirectory(pages: { products: IHProduct[]; board: IHBoardItem[] }[]
         avatar: richer.avatar || prev.avatar,
         website: richer.website || prev.website,
         categories,
+        businessModels,
         verified: prev.verified || product.verified,
       });
     }
@@ -296,7 +308,7 @@ export async function fetchIndieHackers(): Promise<IHDirectory> {
   const pages = await mapPool(SOURCES, 3, async (source) => {
     try {
       const html = await fetchHtml(source.path);
-      return { products: parseCards(html, source.category), board: parseBoard(html) };
+      return { products: parseCards(html, source.category, source.businessModel), board: parseBoard(html) };
     } catch (error) {
       console.warn('[IH]', source.path, error instanceof Error ? error.message : error);
       return { products: [], board: [] };

@@ -5,7 +5,7 @@ import { withBase } from '../lib/url';
 const brands = [
   { href: withBase(), name: 'Hacker News' },
   { href: withBase('show'), name: 'Show HN' },
-  { href: withBase('products'), name: 'Indie Hackers' },
+  { href: withBase('build-board'), name: 'Indie Hackers' },
 ];
 
 const current = Astro.url.pathname.replace(/\/+$/, '') || '/';
