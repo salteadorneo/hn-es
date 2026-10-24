@@ -3,35 +3,39 @@ import Layout from '../layouts/Layout.astro';
 import { fetchIndieHackers } from '../scripts/indiehackers';
 import type { IHBoardItem, IHProduct } from '../scripts/indiehackers';
 import { toSpanish, mapLimit } from '../scripts/translate';
-import { domainOf } from '../scripts/hn';
+import { withBase } from '../lib/url';
+
 
 function money(n: number): string {
   if (!n) return '—';
   return `${n.toLocaleString('es-ES')} $/mes`;
 }
 
-function revenueSize(n: number): string {
-  if (n >= 200_000) return 'text-2xl';
-  if (n >= 50_000) return 'text-xl';
-  return 'text-lg';
-}
-
 let products: (IHProduct & { taglineEs: string })[] = [];
 let board: (IHBoardItem & { updateEs: string })[] = [];
 let failed = false;
 
+const businessModels = [
+  { value: 'all', label: 'Todos' },
+  { value: 'Gratis', label: 'Gratis' },
+  { value: 'Anuncios', label: 'Anuncios' },
+  { value: 'Comisión', label: 'Comisión' },
+  { value: 'Transacciones', label: 'Transacciones' },
+  { value: 'Suscripción', label: 'Suscripción' },
+];
+
+const url = new URL(Astro.request.url);
+const selectedModel = url.searchParams.get('businessModel') || 'all';
+
 try {
   const data = await fetchIndieHackers();
-  const featured = data.products.slice(0, 24);
-  const rest = data.products.slice(24);
-  const translated = await mapLimit(featured, 4, async (product) => ({
+  const translated = await mapLimit(data.products, 4, async (product) => ({
     ...product,
     taglineEs: product.tagline ? await toSpanish(product.tagline) : '',
   }));
-  products = [
-    ...translated,
-    ...rest.map((product) => ({ ...product, taglineEs: product.tagline })),
-  ];
+  products = selectedModel === 'all'
+    ? translated
+    : translated.filter((product) => product.categories.includes(selectedModel));
   board = await mapLimit(data.board, 4, async (item) => ({
     ...item,
     updateEs: item.update ? await toSpanish(item.update) : '',
@@ -40,10 +44,6 @@ try {
   console.error(err);
   failed = true;
 }
-
-const hero = products[0];
-const grid = products.slice(1, 24);
-const ledger = products.slice(24);
 ---
 
 <Layout title="Productos de Indie Hackers | Hacker News en Español" description="Directorio público de productos de Indie Hackers: lanzamientos del día e ingresos verificados por Stripe.">
@@ -60,53 +60,10 @@ const ledger = products.slice(24);
       </div>
     )}
 
-    {hero && (
-      <section class="mb-8">
-        <article class="grid gap-8 border-b border-rule pb-8 lg:grid-cols-12">
-          <div class="lg:col-span-8">
-            <div class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-[10px] uppercase tracking-[0.18em]">
-              <span class="bg-accent px-2 py-1 font-semibold text-paper">{money(hero.revenue)}</span>
-              <span class="text-muted">Stripe · verificado</span>
-              {hero.categories.slice(0, 2).map((category) => (
-                <span class="text-soft">{category}</span>
-              ))}
-            </div>
-            <a
-              href={hero.website || hero.ihUrl}
-              target="_blank"
-              rel="noopener"
-              class="block font-serif text-4xl font-semibold leading-[1.03] tracking-[-0.025em] text-ink transition-colors hover:text-accent sm:text-5xl lg:text-[3.4rem]"
-            >
-              {hero.name}
-            </a>
-            {hero.taglineEs && (
-              <p class="mt-4 max-w-2xl text-base leading-relaxed text-soft">{hero.taglineEs}</p>
-            )}
-            <div class="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-muted">
-              <a href={hero.ihUrl} target="_blank" rel="noopener" class="text-soft transition-colors hover:text-accent">Ficha en Indie Hackers</a>
-              {hero.website && (
-                <>
-                  <span class="text-rule" aria-hidden="true">/</span>
-                  <a href={hero.website} target="_blank" rel="noopener" class="truncate text-soft transition-colors hover:text-accent">{domainOf(hero.website)}</a>
-                </>
-              )}
-            </div>
-          </div>
-          {hero.avatar && (
-            <div class="lg:col-span-4">
-              <a href={hero.website || hero.ihUrl} target="_blank" rel="noopener" class="block">
-                <img src={hero.avatar} alt="" class="aspect-square w-full border border-rule bg-surface object-cover" />
-              </a>
-            </div>
-          )}
-        </article>
-      </section>
-    )}
-
     {board.length > 0 && (
       <section class="mb-10">
         <div class="mb-4 flex items-baseline justify-between gap-4 border-b border-rule pb-2">
-          <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">El tablero de hoy</span>
+          <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">The Build Board</span>
           <span class="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">{board.length} lanzamientos</span>
         </div>
         <ol class="divide-y divide-rule border border-rule">
@@ -138,73 +95,69 @@ const ledger = products.slice(24);
       </section>
     )}
 
-    {grid.length > 0 && (
-      <section class="mb-10">
-        <div class="mb-4 flex items-baseline justify-between gap-4 border-b border-rule pb-2">
-          <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">Ingresos verificados</span>
+    {(products.length > 0 || selectedModel !== 'all') && (
+      <section>
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-4 border-b border-rule pb-2">
+          <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">Products Database</span>
+          <div class="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em]">
+            {businessModels.map((model) => {
+              const href = model.value === 'all'
+                ? withBase('products')
+                : withBase(`products?businessModel=${encodeURIComponent(model.value)}`);
+              const active = selectedModel === model.value;
+              return (
+                <a
+                  href={href}
+                  class={`border px-2 py-1 transition-colors ${active ? 'border-accent bg-accent/10 text-accent' : 'border-rule text-muted hover:text-soft'}`}
+                >
+                  {model.label}
+                </a>
+              );
+            })}
+          </div>
           <span class="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">{products.length} productos públicos</span>
         </div>
-        <div class="grid gap-px border border-rule bg-rule sm:grid-cols-2 lg:grid-cols-3">
-          {grid.map((product) => (
-            <article class="group flex flex-col bg-paper p-5 transition-colors duration-200 hover:bg-surface sm:p-6">
-              <div class="mb-3 flex items-start justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.16em]">
-                <span class={`shrink-0 font-serif font-semibold normal-case tracking-normal text-accent ${revenueSize(product.revenue)}`}>
-                  {money(product.revenue)}
-                </span>
-                {product.website && <span class="truncate text-right text-muted">{domainOf(product.website)}</span>}
-              </div>
-              <div class="flex items-start gap-3">
-                {product.avatar && (
-                  <a href={product.website || product.ihUrl} target="_blank" rel="noopener" class="shrink-0">
-                    <img src={product.avatar} alt="" class="h-14 w-14 border border-rule object-cover" loading="lazy" />
-                  </a>
-                )}
-                <div class="min-w-0">
-                  <a href={product.website || product.ihUrl} target="_blank" rel="noopener" class="block font-serif text-xl font-semibold leading-snug text-ink transition-colors group-hover:text-accent">
+        {products.length === 0 && (
+          <div class="border border-rule p-4 font-mono text-xs text-muted">No hay productos con este modelo de negocio.</div>
+        )}
+        {products.length > 0 && (
+        <div class="divide-y divide-rule border border-rule">
+          {products.map((product) => (
+            <article class="grid grid-cols-[auto_1fr_auto] items-center gap-4 bg-paper px-4 py-3 transition-colors hover:bg-surface sm:px-5">
+              {product.avatar ? (
+                <a href={product.website || product.ihUrl} target="_blank" rel="noopener" class="shrink-0">
+                  <img src={product.avatar} alt="" class="h-10 w-10 border border-rule object-cover" loading="lazy" />
+                </a>
+              ) : (
+                <span class="h-10 w-10 border border-rule"></span>
+              )}
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <a href={product.website || product.ihUrl} target="_blank" rel="noopener" class="block truncate font-serif text-lg font-semibold text-ink transition-colors hover:text-accent">
                     {product.name}
                   </a>
-                  {product.taglineEs && <p class="mt-1 line-clamp-3 text-sm leading-relaxed text-soft">{product.taglineEs}</p>}
+                  {product.categories.length > 0 && (
+                    <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-[9px] uppercase tracking-[0.14em] text-muted">
+                      {product.categories.slice(0, 3).map((category) => (
+                        <span class="border border-rule px-1.5 py-0.5">{category}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
+                {product.taglineEs ? (
+                  <p class="mt-0.5 truncate text-sm text-soft">{product.taglineEs}</p>
+                ) : product.tagline ? (
+                  <p class="mt-0.5 truncate text-sm text-muted">{product.tagline}</p>
+                ) : null}
               </div>
-              <div class="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-4 font-mono text-[10px] text-muted">
-                <span class="text-soft">Stripe</span>
-                {product.categories.slice(0, 2).map((category) => (
-                  <>
-                    <span class="text-rule" aria-hidden="true">/</span>
-                    <span>{category}</span>
-                  </>
-                ))}
-                <span class="text-rule" aria-hidden="true">/</span>
-                <a href={product.ihUrl} target="_blank" rel="noopener" class="text-soft transition-colors hover:text-accent">ficha</a>
+              <div class="flex items-center gap-3 text-right">
+                <span class="shrink-0 font-mono text-[11px] text-accent">{money(product.revenue)}</span>
+                <a href={product.ihUrl} target="_blank" rel="noopener" class="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-accent sm:inline">ficha</a>
               </div>
             </article>
           ))}
         </div>
-      </section>
-    )}
-
-    {ledger.length > 0 && (
-      <section>
-        <div class="mb-4 flex items-baseline justify-between gap-4 border-b border-rule pb-2">
-          <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">Resto del directorio</span>
-          <span class="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">{ledger.length} más</span>
-        </div>
-        <div class="divide-y divide-rule border border-rule">
-          {ledger.map((product) => (
-            <a href={product.ihUrl} target="_blank" rel="noopener" class="grid grid-cols-[auto_1fr_auto] items-center gap-4 bg-paper px-4 py-3 transition-colors hover:bg-surface sm:px-5">
-              {product.avatar ? (
-                <img src={product.avatar} alt="" class="h-8 w-8 border border-rule object-cover" loading="lazy" />
-              ) : (
-                <span class="h-8 w-8 border border-rule"></span>
-              )}
-              <span class="min-w-0">
-                <span class="block truncate font-serif text-lg font-semibold text-ink">{product.name}</span>
-                {product.tagline && <span class="block truncate text-sm text-muted">{product.tagline}</span>}
-              </span>
-              <span class="shrink-0 font-mono text-[11px] text-accent">{money(product.revenue)}</span>
-            </a>
-          ))}
-        </div>
+        )}
       </section>
     )}
 

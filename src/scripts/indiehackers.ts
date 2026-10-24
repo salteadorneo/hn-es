@@ -9,6 +9,11 @@ const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const SOURCES: { path: string; category?: string }[] = [
   { path: '/products' },
   { path: '/products?board=15' },
+  { path: '/products?businessModel=free', category: 'Gratis' },
+  { path: '/products?businessModel=ads', category: 'Anuncios' },
+  { path: '/products?businessModel=commission', category: 'Comisión' },
+  { path: '/products?businessModel=transactions', category: 'Transacciones' },
+  { path: '/products?businessModel=subscriptions', category: 'Suscripción' },
   { path: '/products?category=ai', category: 'IA' },
   { path: '/products?category=programming', category: 'Programación' },
   { path: '/products?category=marketing', category: 'Marketing' },
@@ -17,7 +22,6 @@ const SOURCES: { path: string; category?: string }[] = [
   { path: '/products?category=education', category: 'Educación' },
   { path: '/products?category=design', category: 'Diseño' },
   { path: '/products?category=e-commerce', category: 'Comercio' },
-  { path: '/products?businessModel=subscriptions', category: 'Suscripción' },
 ];
 
 export interface IHProduct {
