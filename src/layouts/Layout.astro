@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { withBase } from '../lib/url';
+import SiteHeader from '../components/SiteHeader.astro';
 
 interface Props {
   title?: string;
@@ -28,6 +29,7 @@ const { title = 'Hacker News en Español', description = 'Blog paralelo de Hacke
     <title>{title}</title>
   </head>
   <body class="min-h-screen bg-paper text-ink antialiased">
+    <SiteHeader />
     <slot />
   </body>
 </html>

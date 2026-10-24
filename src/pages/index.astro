@@ -1,6 +1,5 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import SiteNav from '../components/SiteNav.astro';
 import { fetchFeedIds, fetchItem, domainOf, timeAgo, hnLink, fetchContext, fetchPageImages } from '../scripts/hn';
 import type { ContextImage } from '../scripts/hn';
 import { toSpanish, mapLimit, OPENROUTER_ENABLED } from '../scripts/translate';
@@ -85,30 +84,9 @@ loadedStories.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 const hero = loadedStories[0];
 const rest = loadedStories.slice(1);
 const heroHasLargeImage = !!(hero?.images?.length && isLargeImage(hero.images[0]));
-const lastUpdated = new Date().toLocaleString('es-ES', { dateStyle: 'full', timeStyle: 'short' });
-const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 ---
 
 <Layout title="Hacker News en Español">
-  <header class="site-header sticky top-0 z-30 border-b border-rule bg-paper/85 backdrop-blur-md">
-    <div class="mx-auto max-w-6xl px-4">
-      <div class="header-strip flex items-center justify-between gap-3 border-b border-rule/70 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
-        <span>{today}</span>
-        <span class="hidden items-center gap-2 sm:flex">
-          <span class="inline-block h-1.5 w-1.5 bg-accent" aria-hidden="true"></span>
-          Actualizado {lastUpdated}
-        </span>
-      </div>
-      <div class="header-main flex items-center justify-center gap-3 py-5">
-        <span class="brand-mark" aria-hidden="true">Y</span>
-        <h1 class="nameplate text-balance text-ink">
-          Hacker News <span class="font-light italic">en Español</span>
-        </h1>
-      </div>
-      <SiteNav />
-    </div>
-  </header>
-
   <main class="mx-auto max-w-6xl px-4 py-8">
     {loadedStories.length === 0 && (
       <div class="border border-red-400/40 bg-red-500/10 p-4 font-mono text-xs text-red-300">
@@ -306,14 +284,4 @@ const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'nu
       </div>
     </footer>
   </main>
-
-  <script>
-    const headerEl = document.querySelector('.site-header') as HTMLElement | null;
-    function updateHeader() {
-      if (!headerEl) return;
-      headerEl.classList.toggle('is-compact', window.scrollY > 64);
-    }
-    window.addEventListener('scroll', updateHeader, { passive: true });
-    updateHeader();
-  </script>
 </Layout>
