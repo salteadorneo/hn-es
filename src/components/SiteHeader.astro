@@ -6,20 +6,19 @@ const brands = [
   { href: withBase(), name: 'Hacker News' },
   { href: withBase('show'), name: 'Ideas' },
   { href: withBase('build-board'), name: 'Indie Hackers' },
+  { href: withBase('products-database'), name: 'Indie Hackers' },
 ];
 
 const current = Astro.url.pathname.replace(/\/+$/, '') || '/';
 const brand = brands.find((item) => (item.href.replace(/\/+$/, '') || '/') === current)?.name ?? 'Hacker News';
 
 const lastUpdated = new Date().toLocaleString('es-ES', { dateStyle: 'full', timeStyle: 'short' });
-const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 ---
 
 <header class="site-header sticky top-0 z-30 border-b border-rule bg-paper/85 backdrop-blur-md">
   <div class="mx-auto max-w-6xl px-4">
-    <div class="header-strip flex items-center justify-between gap-3 border-b border-rule/70 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
-      <span>{today}</span>
-      <span class="hidden items-center gap-2 sm:flex">
+    <div class="header-strip flex items-center justify-center gap-3 border-b border-rule/70 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
+      <span class="inline-flex items-center gap-2">
         <span class="inline-block h-1.5 w-1.5 bg-accent" aria-hidden="true"></span>
         Actualizado {lastUpdated}
       </span>
@@ -36,10 +35,28 @@ const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'nu
 
 <script>
   const headerEl = document.querySelector('.site-header') as HTMLElement | null;
+  let isCompact = false;
   function updateHeader() {
     if (!headerEl) return;
-    headerEl.classList.toggle('is-compact', window.scrollY > 64);
+    const y = window.scrollY;
+    // Histéresis: umbrales distintos para activar/desactivar evitan el parpadeo
+    // cuando el cambio de altura del header altera la posición de scroll.
+    if (!isCompact && y > 96) {
+      isCompact = true;
+      headerEl.classList.add('is-compact');
+    } else if (isCompact && y < 40) {
+      isCompact = false;
+      headerEl.classList.remove('is-compact');
+    }
   }
-  window.addEventListener('scroll', updateHeader, { passive: true });
+  let ticking = false;
+  window.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      updateHeader();
+      ticking = false;
+    });
+  }, { passive: true });
   updateHeader();
 </script>

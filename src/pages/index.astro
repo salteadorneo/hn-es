@@ -128,15 +128,6 @@ const heroHasLargeImage = !!(hero?.images?.length && isLargeImage(hero.images[0]
               <div class="story-body mt-4 line-clamp-8 text-base leading-relaxed text-soft" set:html={mdToHtml(hero.textSnippet)} />
             )}
 
-            {hero.images && hero.images.length > 1 && !heroHasLargeImage && (
-              <div class="mt-4 flex flex-wrap gap-2">
-                {hero.images.slice(1, 4).map((img) => (
-                  <a href={hero.url || hnLink(hero.id)} target="_blank" rel="noopener" aria-label={hero.titleEs || hero.title}>
-                    <img src={img.src} alt="" class="h-14 w-14 border border-rule object-cover" loading="lazy" />
-                  </a>
-                ))}
-              </div>
-            )}
 
             <div class="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-muted">
               <span>por <span class="text-soft">{hero.by || 'anónimo'}</span></span>
@@ -165,15 +156,6 @@ const heroHasLargeImage = !!(hero?.images?.length && isLargeImage(hero.images[0]
                   loading="lazy"
                 />
               </a>
-              {hero.images!.length > 1 && (
-                <div class="mt-2 grid grid-cols-3 gap-2">
-                  {hero.images!.slice(1, 4).map((img) => (
-                    <a href={hero.url || hnLink(hero.id)} target="_blank" rel="noopener" aria-label={hero.titleEs || hero.title}>
-                      <img src={img.src} alt="" class="aspect-square w-full border border-rule object-cover" loading="lazy" />
-                    </a>
-                  ))}
-                </div>
-              )}
             </div>
           )}
         </article>
@@ -236,15 +218,6 @@ const heroHasLargeImage = !!(hero?.images?.length && isLargeImage(hero.images[0]
                   <div class="story-body mt-2 line-clamp-8 text-sm leading-relaxed text-soft" set:html={mdToHtml(s.textSnippet)} />
                 )}
 
-                {s.images && s.images.length > 1 && (
-                  <div class="mt-3 flex flex-wrap gap-1.5">
-                    {s.images.slice(1, 4).map((img) => (
-                      <a href={s.url || hnLink(s.id)} target="_blank" rel="noopener" aria-label={s.titleEs || s.title}>
-                        <img src={img.src} alt="" class="h-11 w-11 border border-rule object-cover" loading="lazy" />
-                      </a>
-                    ))}
-                  </div>
-                )}
 
                 <div class="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-4 font-mono text-[10px] text-muted">
                   <span class="text-soft">{s.by || 'anónimo'}</span>
