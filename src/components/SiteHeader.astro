@@ -12,7 +12,7 @@ const brands = [
 const current = Astro.url.pathname.replace(/\/+$/, '') || '/';
 const brand = brands.find((item) => (item.href.replace(/\/+$/, '') || '/') === current)?.name ?? 'Hacker News';
 
-const lastUpdated = new Date().toLocaleString('es-ES', { dateStyle: 'full', timeStyle: 'short' });
+const lastUpdated = new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid', dateStyle: 'full', timeStyle: 'short' });
 ---
 
 <header class="site-header sticky top-0 z-30 border-b border-rule bg-paper/85 backdrop-blur-md">
