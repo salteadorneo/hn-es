@@ -11,7 +11,7 @@ const items = [
 const current = Astro.url.pathname.replace(/\/+$/, '') || '/';
 ---
 
-<nav aria-label="Secciones" class="flex items-center justify-center gap-1 pb-4 font-mono text-[10px] uppercase tracking-[0.22em]">
+<nav aria-label="Secciones" class="mx-auto flex max-w-full items-center justify-center gap-1 overflow-x-auto pb-4 font-mono text-[10px] uppercase tracking-[0.22em]">
   {items.map((item) => {
     const path = item.href.replace(/\/+$/, '') || '/';
     const active = current === path;
@@ -20,8 +20,10 @@ const current = Astro.url.pathname.replace(/\/+$/, '') || '/';
         href={item.href}
         aria-current={active ? 'page' : undefined}
         class:list={[
-          'px-3 py-1 transition-colors',
-          active ? 'bg-accent text-paper' : 'text-muted hover:text-ink',
+          'whitespace-nowrap rounded-full px-4 py-1.5 transition-all duration-200',
+          active
+            ? 'bg-accent text-paper shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-accent)_40%,transparent)]'
+            : 'text-muted hover:bg-surface hover:text-ink',
         ]}
       >
         {item.label}

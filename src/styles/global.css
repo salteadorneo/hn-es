@@ -5,14 +5,14 @@
   --font-serif: "Newsreader", "Iowan Old Style", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 
-  --color-paper: #16161e;
-  --color-surface: #1a1b26;
-  --color-ink: #c0caf5;
-  --color-soft: #a9b1d6;
-  --color-muted: #7b85b0;
-  --color-rule: #292e42;
+  --color-paper: #0e1117;
+  --color-surface: #151922;
+  --color-ink: #e6e9f2;
+  --color-soft: #b8bfd6;
+  --color-muted: #8690b3;
+  --color-rule: #262b3d;
   --color-accent: #ff9e64;
-  --color-accent-soft: #ffb98a;
+  --color-accent-soft: #ffc299;
 }
 
 @layer base {
@@ -23,14 +23,16 @@
   body {
     background-color: var(--color-paper);
     background-image:
-      linear-gradient(to right, color-mix(in oklab, var(--color-ink) 4%, transparent) 1px, transparent 1px),
-      linear-gradient(to bottom, color-mix(in oklab, var(--color-ink) 4%, transparent) 1px, transparent 1px);
-    background-size: 28px 28px;
+      radial-gradient(1200px 600px at 50% -10%, color-mix(in oklab, var(--color-accent) 12%, transparent), transparent 70%),
+      linear-gradient(to right, color-mix(in oklab, var(--color-ink) 3%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklab, var(--color-ink) 3%, transparent) 1px, transparent 1px);
+    background-size: auto, 32px 32px, 32px 32px;
     background-attachment: fixed;
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-synthesis: none;
     text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
   }
 
   ::selection {
@@ -43,9 +45,42 @@
     outline-offset: 3px;
   }
 
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-paper);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-rule);
+    border: 2px solid var(--color-paper);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-muted);
+  }
+
   a {
     color: inherit;
   }
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -3rem;
+  z-index: 100;
+  padding: 0.5rem 0.75rem;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-paper);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  transition: top 150ms ease;
+}
+.skip-link:focus {
+  top: 1rem;
 }
 
 .site-header {
@@ -64,9 +99,11 @@
   background: var(--color-accent);
   color: var(--color-paper);
   font-family: var(--font-mono);
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   line-height: 1;
+  border-radius: 0.35rem;
+  letter-spacing: -0.02em;
   transition:
     width 200ms ease,
     height 200ms ease,

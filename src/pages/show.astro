@@ -75,7 +75,7 @@ try {
 ---
 
 <Layout title="Ideas en Español | Hacker News en Español">
-  <main class="mx-auto max-w-6xl px-4 py-8">
+  <main id="contenido" class="mx-auto max-w-6xl px-4 py-8">
     {ideas.length === 0 && (
       <div class="border border-red-400/40 bg-red-500/10 p-4 font-mono text-xs text-red-300">
         No se pudo conectar con Hacker News.
@@ -93,7 +93,7 @@ try {
           {ideas.map((s) => {
             const span = s.score >= 500 ? 'sm:col-span-2' : '';
             return (
-              <article class={`group flex flex-col bg-paper p-5 transition-colors duration-200 hover:bg-surface sm:p-6 ${span}`}>
+              <article class={`group flex flex-col bg-paper p-5 transition-all duration-200 hover:bg-surface hover:shadow-[0_12px_40px_-16px_color-mix(in_oklab,var(--color-accent)_28%,transparent)] sm:p-6 ${span}`}>
                 <div class="mb-3 flex items-start justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.16em]">
                   <span class="shrink-0 text-accent">
                     {s.score.toLocaleString('es-ES')}<span class="text-muted"> pts</span>
