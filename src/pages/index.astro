@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import { fetchFeedIds, fetchItem, domainOf, timeAgo, hnLink, fetchContext, fetchPageImages } from '../scripts/hn';
 import type { ContextImage } from '../scripts/hn';
 import { toSpanish, mapLimit, OPENROUTER_ENABLED } from '../scripts/translate';
-import { isLargeImage, titleSize, stripHtml, mdToHtml } from '../lib/format';
+import { isLargeImage, titleSize, stripHtml } from '../lib/format';
 
 type StoryImage = ContextImage;
 type Story = {
@@ -120,14 +120,12 @@ const heroHasLargeImage = !!(hero?.images?.length && isLargeImage(hero.images[0]
               target="_blank"
               rel="noopener"
               class="hn-title block font-serif text-4xl font-semibold leading-[1.03] tracking-[-0.025em] text-ink transition-colors hover:text-accent sm:text-5xl lg:text-[3.4rem]"
-            >
-              {hero.titleEs || hero.title}
-            </a>
-
-            {hero.textSnippet && (
-              <div class="story-body mt-4 line-clamp-8 text-base leading-relaxed text-soft" set:html={mdToHtml(hero.textSnippet)} />
-            )}
-
+             >
+               {hero.titleEs || hero.title}
+             </a>
+             {hero.title && hero.title !== (hero.titleEs || hero.title) && (
+               <p class="mt-1 font-mono text-xs text-muted">{hero.title}</p>
+             )}
 
             <div class="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-muted">
               <span>por <span class="text-soft">{hero.by || 'anónimo'}</span></span>
@@ -205,6 +203,10 @@ const heroHasLargeImage = !!(hero?.images?.length && isLargeImage(hero.images[0]
                   </a>
                 )}
 
+                 {(!s.images || s.images.length === 0) && (
+                   <div class="mb-4 aspect-[16/9] w-full border border-rule bg-surface" aria-hidden="true" />
+                 )}
+
                 <a
                   href={s.url || hnLink(s.id)}
                   target="_blank"
@@ -214,10 +216,9 @@ const heroHasLargeImage = !!(hero?.images?.length && isLargeImage(hero.images[0]
                   {s.titleEs || s.title}
                 </a>
 
-                {s.textSnippet && (
-                  <div class="story-body mt-2 line-clamp-8 text-sm leading-relaxed text-soft" set:html={mdToHtml(s.textSnippet)} />
-                )}
-
+                 {s.title && s.title !== (s.titleEs || s.title) && (
+                   <p class="mt-1 font-mono text-[10px] text-muted">{s.title}</p>
+                 )}
 
                 <div class="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-4 font-mono text-[10px] text-muted">
                   <span class="text-soft">{s.by || 'anónimo'}</span>
